@@ -234,6 +234,8 @@ def combineFeatures(candidates, args={}):
     :return: the ``list`` of fitness values corresponding to the parameter sets
     """
 
+    fitFun = fF(reader, model, option) # needed for features mode
+
     fitnes = []
     #option=optionHandler()
     features = option.feats
@@ -296,9 +298,9 @@ def combineFeatures(candidates, args={}):
                 else:
                     for f, w in zip(features, weigths):
                         if moo_var:
-                            temp_fit.append(FFun_for_Features(model.record[0],reader.features_data, f, k, args))
+                            temp_fit.append(fitFun.FFun_for_Features(model.record[0],reader.features_data, f, k, args))
                         else:
-                            temp_fit += w * FFun_for_Features(model.record[0],reader.features_data, f, k, args)
+                            temp_fit += w * fitFun.FFun_for_Features(model.record[0],reader.features_data, f, k, args)
             else:
                 temp_fit=100
         if moo_var:
@@ -1607,7 +1609,7 @@ class deapIBEA(baseOptimizer):
         BOUND_LOW = self.min_max[0]
         BOUND_UP = self.min_max[1]
         NDIM = 30
-        minimweights=[ -x for x in option_obj.weights]*self.reader.number_of_traces() #turn weights for minimizing
+        minimweights=[ -x for x in option_obj.weights]*reader_obj.number_of_traces() #turn weights for minimizing
         creator.create("FitnessMin", base.Fitness, weights=minimweights)
         creator.create("Individual", array1.array, typecode='d', fitness=creator.FitnessMin)
         self.toolbox = base.Toolbox()

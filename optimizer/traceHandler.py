@@ -185,7 +185,13 @@ class DATA():
         else:
             return int(len(self.features_data["stim_amp"]))
         '''
-        return int(self.data.no_traces)
+        if not self.features_data:
+            num_trace = int(self.data.no_traces)
+        else:
+            num_trace =  int(len(self.features_data["stim_amp"]))
+
+        #return int(self.data.no_traces)
+        return num_trace
 
     def get_type(self):
         """
