@@ -55,10 +55,14 @@ from pybrain.optimization.distributionbased.distributionbased import Distributio
 from scipy import dot, exp, log, sqrt, floor, ones, randn
 from pybrain.tools.rankingfunctions import RankingFunction
 
+import pygmo as pg
+
 global moo_var
 global brain_var
+global pygmo_var
 moo_var=False
 brain_var=False
+pygmo_var=False
 
 def setmodparams(reader_obje,model_obje,option_obje):
     global option
@@ -248,7 +252,7 @@ def combineFeatures(candidates, args={}):
         temp_fit = 0
     print candidates
 
-    if brain_var:
+    if brain_var or pygmo_var:
         candidates=[candidates]
     #model.hoc_ob.cellpickler('cell.cpickle')
     if option.type[-1]!= 'features':
@@ -317,10 +321,7 @@ def combineFeatures(candidates, args={}):
         return fitnes
 
 
-
-
-# to generate a new set of parameters
-class baseOptimizer():
+class oldBaseOptimizer():
     """
     An abstract base class to implement an optimization process.
     """
@@ -346,8 +347,137 @@ class baseOptimizer():
             except KeyError:
                 print "error with fitness function: ",option_obj.feats," not in: ",self.fit_obj.calc_dict.keys()
 
+# to generate a new set of parameters
+class baseOptimizer():
+    """
+    An abstract base class to implement an optimization process.
+    """
+    def __init__(self, reader_obj, model_obj, option_obj):
+        self.fit_obj = fF(reader_obj, model_obj, option_obj)
+        self.SetFFun(option_obj)
+
+        self.rand = random
+        self.seed = int(option_obj.seed)
+        self.rand.seed(self.seed)
+
+        self.num_params = option_obj.num_params
+        self.number_of_cpu=option_obj.number_of_cpu
+
+        setmodparams(reader_obj,model_obj,option_obj)
+        self.SetBoundaries(option_obj.boundaries)
+
+    def SetFFun(self,option_obj):
+        """
+        Sets the combination function and converts the name of the fitness functions into function instances.
+
+        :param option_obj: an ``optionHandler`` instance
+
+        """
+
+        try:
+            self.ffun=self.fit_obj.fun_dict["Combinations"]
+            self.mfun=self.fit_obj.fun_dict2["Multiobj"]
+        except KeyError:
+            sys.exit("Unknown fitness function!")
+
+        if option_obj.type[-1]!='features':
+            try:
+                option_obj.feats=map(lambda x:self.fit_obj.calc_dict[x],option_obj.feats)
+            except KeyError:
+                print "error with fitness function: ",option_obj.feats," not in: ",self.fit_obj.calc_dict.keys()
+
+    def SetBoundaries(self, bounds):
+        """
+        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
+        every parameter into the range of 0-1 since the algorithms are using normalized values.
+
+        :param bounds: ``list`` containing the minimum and maximum values.
+
+        """
+        self.min_max = bounds
+        self.bounder = ec.Bounder([0] * len(self.min_max[0]), [1] * len(self.min_max[1]))
+
+class InspyredAlgorithmBasis(baseOptimizer):
+    def __init__(self, reader_obj, model_obj, option_obj):
+        baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
+
+        self.pop_size = option_obj.pop_size
+        self.max_evaluation = option_obj.max_evaluation
+
+        self.maximize = False  # hard wired, always minimize
+        self.stat_file = open("stat_file.txt", "w")
+        self.ind_file = open("ind_file.txt", "w")
+
+        try:
+            # print type(option_obj.starting_points)
+            if isinstance(option_obj.starting_points[0], list):
+                self.starting_points = option_obj.starting_points
+            else:
+                self.starting_points = [normalize(option_obj.starting_points, self)]
+        except TypeError:
+            self.starting_points = None
+        if option_obj.output_level == "1":
+            print "starting points: ", self.starting_points
+
+        self.kwargs = dict(generator=uniform,
+                           evaluator=inspyred.ec.evaluators.parallel_evaluation_mp,
+                           mp_evaluator=combineFeatures,
+                           mp_nprocs=int(self.number_of_cpu),
+                           pop_size=self.pop_size,
+                           seeds=self.starting_points,
+                           max_generations=self.max_evaluation,
+                           num_params=self.num_params,
+                           maximize=self.maximize,
+                           bounder=self.bounder,
+                           boundaries=self.min_max,
+                           statistics_file=self.stat_file,
+                           individuals_file=self.ind_file)
+    def Optimize(self):
+            """
+            Performs the optimization.
+            """
+            logger = logging.getLogger('inspyred.ec')
+            logger.setLevel(logging.DEBUG)
+            file_handler = logging.FileHandler('inspyred.log', mode='w')
+            file_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+
+            self.final_pop = self.evo_strat.evolve(**self.kwargs)
+
+            if hasattr(self.evo_strat, "archive"):
+                self.final_archive = self.evo_strat.archive
 
 
+class ScipyAlgorithmBasis(baseOptimizer):
+
+    def __init__(self, reader_obj, model_obj, option_obj):
+        baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
+
+        try:
+            if isinstance(option_obj.starting_points[0], list):
+                raise TypeError
+            else:
+                self.starting_points = [normalize(option_obj.starting_points, self)]
+        except TypeError:
+            self.starting_points = uniform(self.rand, {"num_params": self.num_params, "self": self})
+        if option_obj.output_level == "1":
+            print "starting points: ", self.starting_points
+
+    def wrapper(self, candidates, args):
+        """
+        Converts the ``ndarray`` object into a ``list`` and passes it to the fitness function.
+
+        :param candidates: the ``ndarray`` object
+        :param args: optional parameters to be passed to the fitness function
+
+        :return: the return value of the fitness function
+
+        """
+        tmp = ndarray.tolist(candidates)
+        candidates = self.bounder(tmp, args)
+        return self.ffun([candidates], args)[0]
 
 def normalize(v,args):
     """
@@ -421,8 +551,7 @@ class bounderObject(object):
         return tmax and tmin
 
 
-
-class annealing(baseOptimizer):
+class annealing(InspyredAlgorithmBasis):
     """
     Implements the ``Simulated Annealing`` algorithm for minimization from the ``inspyred`` package.
 
@@ -438,96 +567,72 @@ class annealing(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        setmodparams(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=Random()
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
+        InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
+
+        self.kwargs['mutation_rate'] = option_obj.mutation_rate
+        self.kwargs['gaussian_mean'] = option_obj.m_gauss
+        self.kwargs['gaussian_stdev'] = option_obj.std_gauss
+        self.kwargs['temperature'] = option_obj.init_temp
+        self.kwargs['cooling_rate'] = option_obj.cooling_rate
+        self.kwargs['max_evaluations'] = self.max_evaluation
+
         self.evo_strat=ec.SA(self.rand)
         self.evo_strat.terminator=terminators.evaluation_termination
         if option_obj.output_level=="1":
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
-        self.max_evaluation=option_obj.max_evaluation
-        self.mutation_rate=option_obj.mutation_rate
-        self.g_m=option_obj.m_gauss
-        self.g_std=option_obj.std_gauss
-        self.inint_T=option_obj.init_temp
-        self.cooling_rate=option_obj.cooling_rate
-        self.number_of_cpu=option_obj.number_of_cpu
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        self.maximize=False #hard wired, always minimize
-        self.stat_file=open("stat_file.txt","w")
-        self.ind_file=open("ind_file.txt","w")
-        #inspyred needs sequence of seeds
-        #self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
-        try:
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
 
-#    def wrapper(self,candidates,args):
-#        tmp=ndarray.tolist(candidates)
-#        c=[]
-#        for n in tmp:
-#            c.append(n[0])
-#        #c=self.bounder(c,args)
-#        print [c]
-#        return self.ffun([c],args)[0]
 
+class problem:
+    def __init__(self, bounds):
+        self.bounds = bounds
+        self.min_max = bounds
+
+    def fitness(self, x):
+        return combineFeatures(normalize(x,self))
+
+    def get_bounds(self):
+        return(self.bounds[0], self.bounds[1])
+
+
+class pygmoDE(baseOptimizer):
+
+    def __init__(self,reader_obj,model_obj,option_obj):
+
+        baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
+        global pygmo_var
+        pygmo_var=True
+
+    
+        self.max_evaluation=int(option_obj.max_evaluation)
+        self.pop_size=int(option_obj.pop_size)
+
+        pg.set_global_rng_seed(seed = self.seed)
+
+        self.prob = problem(option_obj.boundaries)
+        self.algo = pg.algorithm(pg.de(gen=self.max_evaluation, ftol=1e-15, tol=1e-15))
+        self.pop = pg.population(self.prob, size = self.pop_size)
+        
     def Optimize(self):
-        """
-        Performs the optimization.
-        """
-        logger = logging.getLogger('inspyred.ec')
-        logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler('inspyred.log', mode='w')
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        print int(self.number_of_cpu)
-        self.final_pop=self.evo_strat.evolve(generator=uniform, evaluator=inspyred.ec.evaluators.parallel_evaluation_mp,
-                                             mp_evaluator=combineFeatures,
-                                             mp_nprocs=int(self.number_of_cpu),
-                                             max_evaluations=self.max_evaluation,
-                                             mutation_rate=self.mutation_rate,
-                                             temperature=self.inint_T,
-                                             cooling_rate=self.cooling_rate,
-                                             gaussian_mean=self.g_m,
-                                             gaussian_stdev=self.g_std,
-                                             num_params=self.num_params,
-                                             maximize=self.maximize,
-                                             bounder=self.bounder,
-                                             seeds=self.starting_points,
-                                             boundaries=self.min_max,
-                                             statistics_file=self.stat_file,
-                                             individuals_file=self.ind_file,
-                                             )
 
-
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
-
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
+        self.algo.set_verbosity(1)
+        self.final_pop = self.algo.evolve(self.pop)
+        uda = self.algo.extract(pg.de)
+        log = uda.get_log()
+        print(log)
+        with open ("stat_file.txt", 'w') as stat_file:  
+            for line in log:
+                for i,element in enumerate(line):
+                    if i == len(line)-1:
+                        stat_file.write(str(element))
+                    else:
+                        stat_file.write(str(element)+ ', ')
+                stat_file.write('\n')
 
 
 
-class PSO(baseOptimizer):
+class PSO(InspyredAlgorithmBasis):
     """
     Implements the ``Particle Swarm`` algorithm for minimization from the ``inspyred`` package.
 
@@ -543,109 +648,35 @@ class PSO(baseOptimizer):
     """
     def __init__(self,reader_obj,model_obj,option_obj):
 
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
+        InspyredAlgorithmBasis.__init__(self,reader_obj,model_obj,option_obj)
 
-        self.rand=Random()
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
-
-	#PSO algorithm
+        #PSO algorithm
         self.evo_strat=inspyred.swarm.PSO(self.rand)
 
-	#algorithm terminates at max number of generations
+        #algorithm terminates at max number of generations
         self.evo_strat.terminator=terminators.generation_termination
 
-	if option_obj.output_level=="1":
+        if option_obj.output_level=="1":
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
 
-        self.max_evaluation=option_obj.max_evaluation
-        self.pop_size=option_obj.pop_size
 
-	#PSO attributes
-        self.number_of_cpu=option_obj.number_of_cpu
-        self.inertia=option_obj.inertia
-        self.cognitive_rate=option_obj.cognitive_rate
-        self.social_rate=option_obj.social_rate
-	#self.neighborhood_size=int(round(option_obj.neighborhood_size))
-	self.topology=inspyred.swarm.topologies.star_topology
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        self.maximize=False #hard wired, always minimize
-        self.stat_file=open("stat_file.txt","w")
-        self.ind_file=open("ind_file.txt","w")
-
-        #inspyred needs sequence of seeds
-        #self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
-        try:
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
-
-#    def wrapper(self,candidates,args):
-#        tmp=ndarray.tolist(candidates)
-#        c=[]
-#        for n in tmp:
-#            c.append(n[0])
-#        #c=self.bounder(c,args)
-#        print [c]
-#        return self.ffun([c],args)[0]
-
-    def Optimize(self):
-        """
-        Performs the optimization.
-        """
-        logger = logging.getLogger('inspyred.ec')
-        logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler('inspyred.log', mode='w')
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        print int(self.number_of_cpu)
-        self.final_pop=self.evo_strat.evolve(generator=uniform,evaluator=inspyred.ec.evaluators.parallel_evaluation_mp,
-                                             mp_evaluator=combineFeatures,
-                                             mp_nprocs=int(self.number_of_cpu),
-                                             max_generations=self.max_evaluation-1,
-                                             pop_size=self.pop_size,
-					     inertia=self.inertia,
-					     cognitive_rate=self.cognitive_rate,
-					     social_rate=self.social_rate,
-                                             num_params=self.num_params,
-                                             maximize=self.maximize,
-                                             bounder=self.bounder,
-                                             seeds=self.starting_points,
-                                             boundaries=self.min_max,
-                                             statistics_file=self.stat_file,
-                                             individuals_file=self.ind_file
-                                             )
-	self.stat_file.close()
-	self.ind_file.close()
+        #PSO attributes
+        self.kwargs["inertia"] = option_obj.inertia
+        self.kwargs["cognitive_rate"] = option_obj.cognitive_rate
+        self.kwargs["social_rate"] = option_obj.social_rate
+        '''
+        if (self.topology == "Star"):
+            self.evo_strat.topology = inspyred.swarm.topologies.star_topology
+        elif (self.topology == "Ring"):
+            self.evo_strat.topology = inspyred.swarm.topologies.ring_topology
+        #self.neighborhood_size=int(round(option_obj.neighborhood_size))
+        '''
+        self.kwargs["topology"] = inspyred.swarm.topologies.star_topology
 
 
-
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
-
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
-
-
-
-
-class basinHopping(baseOptimizer):
+class basinHopping(ScipyAlgorithmBasis):
     """
     Implements the ``Basinhopping`` algorithm for minimization from the ``scipy`` package.
 
@@ -660,28 +691,13 @@ class basinHopping(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        setmodparams(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=random
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
+        ScipyAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
+
         self.temp=option_obj.temperature
         self.num_iter=option_obj.num_iter
         self.num_repet=option_obj.num_repet
         self.step_size=option_obj.step_size
         self.freq=option_obj.update_freq
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        try:
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=uniform(self.rand,{"num_params" : self.num_params,"self": self})
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
 
     def logger(self,x,f,accepted):
         self.log_file.write(np.array_str(x))
@@ -1002,8 +1018,7 @@ class grid(baseOptimizer):
 
 
 
-# simple EO algorithm
-class simpleEO(baseOptimizer):
+class simpleEO(InspyredAlgorithmBasis):
     """
     Implements a custom version of ``Evolution Strategy`` algorithm for minimization from the ``inspyred`` package.
     :param reader_obj: an instance of ``DATA`` object
@@ -1023,12 +1038,12 @@ class simpleEO(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        setmodparams(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=Random()
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
+        InspyredAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
+
+        self.kwargs["mutation_rate"] = option_obj.mutation_rate
+        self.kwargs["num_elites"] = int(self.pop_size/2)
+        self.kwargs["gaussian_stdev"] = 0.5
+
         self.evo_strat=ec.ES(self.rand)
         self.evo_strat.terminator=terminators.generation_termination
         self.evo_strat.selector=inspyred.ec.selectors.default_selection
@@ -1039,71 +1054,9 @@ class simpleEO(baseOptimizer):
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
-        self.pop_size=option_obj.pop_size
-        self.max_evaluation=option_obj.max_evaluation
-        self.mutation_rate=option_obj.mutation_rate
-        self.num_params=option_obj.num_params
-        self.number_of_cpu=option_obj.number_of_cpu
-        self.SetBoundaries(option_obj.boundaries)
-        self.maximize=False #hard wired, always minimize
-        self.stat_file=open("stat_file.txt","w")
-        self.ind_file=open("ind_file.txt","w")
-        #inspyred needs sequence of seeds
-        #self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
-        try:
-            #print type(option_obj.starting_points)
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
-
-        # generator comes from the class
-        # evaluator comes from fitnessFunctions
-        # bounder comes from the class, should be callable
-
-    def Optimize(self):
-        """
-        Performs the optimization.
-        """
-        logger = logging.getLogger('inspyred.ec')
-        logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler('inspyred.log', mode='w')
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        self.final_pop=self.evo_strat.evolve(generator=uniform, evaluator=combineFeatures,
-                                             #mp_nprocs=int(self.number_of_cpu),
-                                             pop_size=self.pop_size, seeds=self.starting_points,
-                                             max_generations=self.max_evaluation,
-                                             mutation_rate=self.mutation_rate,
-                                             num_params=self.num_params,
-                                             maximize=self.maximize, bounder=self.bounder,
-                                             num_elites=int(self.pop_size/2),
-                                             boundaries=self.min_max,
-                                             statistics_file=self.stat_file,
-                                             individuals_file=self.ind_file,
-#                                             blx_alpha=0.2,
-                                             gaussian_stdev=0.5)
-
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
-
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
 
 
-
-class DEA(baseOptimizer):
+class DEA(InspyredAlgorithmBasis):
     """
     Implements the ``Differential Evolution Algorithm`` algorithm for minimization from the ``inspyred`` package.
     :param reader_obj: an instance of ``DATA`` object
@@ -1119,97 +1072,23 @@ class DEA(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=Random()
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
+
+        InspyredAlgorithmBasis.__init__(self,reader_obj,model_obj,option_obj)
+        self.kwargs["tournament_size"] = int(self.pop_size)
+        self.kwargs["num_selected"] = int(self.pop_size/10)
+        self.kwargs["mutation_rate"] = option_obj.mutation_rate
+        self.kwargs["crossover_rate"] = option_obj.crossover_rate
+
         self.evo_strat=ec.DEA(self.rand)
-#    - *num_selected* -- the number of individuals to be selected (default 2)
-#    - *tournament_size* -- the tournament size (default 2)
-#    - *crossover_rate* -- the rate at which crossover is performed
-#    (default 1.0)
-#    - *mutation_rate* -- the rate at which mutation is performed (default 0.1)
-#    - *gaussian_mean* -- the mean used in the Gaussian function (default 0)
-#    - *gaussian_stdev* -- the standard deviation used in the Gaussian function
-#   (default 1)
         self.evo_strat.terminator=terminators.generation_termination
 
         if option_obj.output_level=="1":
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
-        self.pop_size=option_obj.pop_size
-        self.number_of_cpu=option_obj.number_of_cpu
-        self.max_evaluation=option_obj.max_evaluation
-        self.mutation_rate=option_obj.mutation_rate
-	self.crossover_rate=option_obj.crossover_rate
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        self.maximize=False #hard wired, always minimize
-        self.stat_file=open("stat_file.txt","w")
-        self.ind_file=open("ind_file.txt","w")
-        #inspyred needs sequence of seeds
-        #self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
-        try:
-            #print type(option_obj.starting_points)
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
-
-        # generator comes from the class
-        # evaluator comes from fitnessFunctions
-        # bounder comes from the class, should be callable
-
-    def Optimize(self):
-        """
-        Performs the optimization.
-        """
-        logger = logging.getLogger('inspyred.ec')
-        logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler('inspyred.log', mode='w')
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        print int(self.number_of_cpu)
-        self.final_pop=self.evo_strat.evolve(generator=uniform, evaluator=inspyred.ec.evaluators.parallel_evaluation_mp,
-                                             mp_evaluator=combineFeatures,
-                                             mp_nprocs_cpus=int(self.number_of_cpu),
-                                             pop_size=self.pop_size,
-                                             tournament_size=int(self.pop_size),
-                                             num_selected=int(self.pop_size/10),
-                                             seeds=self.starting_points,
-                                             max_generations=self.max_evaluation,
-                                             mutation_rate=self.mutation_rate,
-					     crossover_rate=self.crossover_rate,
-                                             num_params=self.num_params,
-                                             maximize=self.maximize,
-                                             bounder=self.bounder,
-                                             boundaries=self.min_max,
-                                             statistics_file=self.stat_file,
-                                             individuals_file=self.ind_file,
-                                             )
-
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
-
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
 
 
-
-class RandomSearch(baseOptimizer):
+class RandomSearch(InspyredAlgorithmBasis):
     """
     Implements the ``Differential Evolution Algorithm`` algorithm for minimization from the ``inspyred`` package.
     :param reader_obj: an instance of ``DATA`` object
@@ -1225,27 +1104,12 @@ class RandomSearch(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=Random()
-        setmodparams(reader_obj,model_obj,option_obj)
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
-        self.pop_size=option_obj.pop_size
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        self.number_of_cpu=option_obj.number_of_cpu
-
-        try:
-            #print type(option_obj.starting_points)
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
+        InspyredAlgorithmBasis.__init__(self,reader_obj,model_obj,option_obj)
+        for file_name in ["stat_file.txt", "ind_file.txt"]:
+            try:
+                os.remove(file_name)
+            except OSError:
+                pass
 
 
     def Optimize(self):
@@ -1259,33 +1123,22 @@ class RandomSearch(baseOptimizer):
         log_f.write("\t")
         log_f.write(str(self.act_min.fitness))
         log_f.write("\n")
-        p=multiprocessing.Pool(int(self.number_of_cpu))
-        act_candidate=[]
         for i in range(int(self.pop_size)):
-            act_candidate.append(uniform(self.rand, {"self":self,"num_params":self.num_params}))
-        act_candidate=[[x,] for x in act_candidate]
-        act_fitess=p.map(combineFeatures,act_candidate)
-        log_f.write(str(act_candidate))
-        log_f.write("\t")
-        log_f.write(str(act_fitess))
-        log_f.write("\n")
-        if (act_fitess<self.act_min.fitness):
-            self.act_min=my_candidate(act_candidate,act_fitess)
+            act_candidate=uniform(self.rand, {"self":self,"num_params":self.num_params})
+            act_fitess=self.ffun([act_candidate],{})
+            log_f.write(str(act_candidate))
+            log_f.write("\t")
+            log_f.write(str(act_fitess))
+            log_f.write("\n")
+            if (act_fitess<self.act_min.fitness):
+                self.act_min=my_candidate(array(act_candidate),act_fitess)
 
-        self.final_pop=[my_candidate(numpy.asarray(y[0]),z) for y,z in zip(act_candidate,act_fitess)]
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
+        log_f.close()
+        self.final_pop=[self.act_min]
 
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
 
 # simple NSGA-II
-class NSGAII(baseOptimizer):
+class NSGAII(InspyredAlgorithmBasis):
     """
     Implements a custom version of ``Evolution Strategy`` algorithm for minimization from the ``inspyred`` package.
     :param reader_obj: an instance of ``DATA`` object
@@ -1305,14 +1158,8 @@ class NSGAII(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        setmodparams(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=Random()
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
-        global moo_var
-        moo_var=True
+        InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
+
         self.evo_strat=ec.emo.NSGA2(self.rand)
         self.evo_strat.terminator=terminators.generation_termination
         self.evo_strat.selector=inspyred.ec.selectors.default_selection
@@ -1324,70 +1171,11 @@ class NSGAII(baseOptimizer):
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
-        self.pop_size=option_obj.pop_size
 
-        self.max_evaluation=option_obj.max_evaluation
-        self.mutation_rate=option_obj.mutation_rate
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        self.number_of_cpu=option_obj.number_of_cpu
-        self.maximize=False #hard wired, always minimize
-        self.stat_file=open("stat_file.txt","w")
-        self.ind_file=open("ind_file.txt","w")
-        #inspyred needs sequence of seeds
-        #self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
-        try:
-            #print type(option_obj.starting_points)
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
-
-        # generator comes from the class
-        # evaluator comes from fitnessFunctions
-        # bounder comes from the class, should be callable
-
-    def Optimize(self):
-        """
-        Performs the optimization.
-        """
-        logger = logging.getLogger('inspyred.ec')
-        logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler('inspyred.log', mode='w')
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        self.final_pop=self.evo_strat.evolve(generator=uniform, evaluator=inspyred.ec.evaluators.parallel_evaluation_mp,
-                                             mp_evaluator=combineFeatures,
-                                             mp_nprocs=int(self.number_of_cpu),
-                                             pop_size=self.pop_size, seeds=self.starting_points,
-                                             max_generations=self.max_evaluation,
-                                             num_params=self.num_params,
-                                             maximize=self.maximize, bounder=self.bounder,
-                                             boundaries=self.min_max,
-                                             statistics_file=self.stat_file,
-                                             individuals_file=self.ind_file)
-	self.final_archive = self.evo_strat.archive
-    moo_var=False
-
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
-
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
+        self.kwargs['evaluator'] = self.mfun
 
 
-class PAES(baseOptimizer):
+class PAES(InspyredAlgorithmBasis):
     """
     Implements a custom version of ``PAES`` algorithm for minimization from the ``inspyred`` package.
     :param reader_obj: an instance of ``DATA`` object
@@ -1403,14 +1191,8 @@ class PAES(baseOptimizer):
 
     """
     def __init__(self,reader_obj,model_obj,option_obj):
-        self.fit_obj=fF(reader_obj,model_obj,option_obj)
-        setmodparams(reader_obj,model_obj,option_obj)
-        self.SetFFun(option_obj)
-        self.rand=Random()
-        global moo_var
-        moo_var=True
-        self.seed=option_obj.seed
-        self.rand.seed(self.seed)
+        InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
+
         self.evo_strat=ec.emo.PAES(self.rand)
         self.evo_strat.terminator=terminators.generation_termination
         self.evo_strat.selector=inspyred.ec.selectors.default_selection
@@ -1421,69 +1203,10 @@ class PAES(baseOptimizer):
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
-        self.pop_size=option_obj.pop_size
-        self.max_evaluation=option_obj.max_evaluation
-        self.mutation_rate=option_obj.mutation_rate
-        self.num_params=option_obj.num_params
-        self.SetBoundaries(option_obj.boundaries)
-        self.number_of_cpu=option_obj.number_of_cpu
-        self.maximize=False #hard wired, always minimize
-        self.stat_file=open("stat_file.txt","w")
-        self.ind_file=open("ind_file.txt","w")
-        #inspyred needs sequence of seeds
-        #self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
-        try:
-            #print type(option_obj.starting_points)
-            if isinstance(option_obj.starting_points[0],list):
-                self.starting_points=option_obj.starting_points
-            else:
-                self.starting_points=[normalize(option_obj.starting_points,self)]
-        except TypeError:
-            self.starting_points=None
-        if option_obj.output_level=="1":
-            print "starting points: ",self.starting_points
 
-        # generator comes from the class
-        # evaluator comes from fitnessFunctions
-        # bounder comes from the class, should be callable
-
-    def Optimize(self):
-        """
-        Performs the optimization.
-        """
-        logger = logging.getLogger('inspyred.ec')
-        logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler('inspyred.log', mode='w')
-        file_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        print int(self.number_of_cpu)
-        self.final_pop=self.evo_strat.evolve(generator=uniform, evaluator=inspyred.ec.evaluators.parallel_evaluation_mp,
-                                             mp_evaluator=combineFeatures,
-                                             mp_nprocs=int(self.number_of_cpu),
-                                             pop_size=self.pop_size, seeds=self.starting_points,
-                                             max_generations=self.max_evaluation,
-                                             mutation_rate=self.mutation_rate,
-                                             num_params=self.num_params,
-                                             maximize=self.maximize, bounder=self.bounder,
-                                             num_elites=int(self.pop_size/2),
-                                             boundaries=self.min_max,
-                                             statistics_file=self.stat_file,
-                                             individuals_file=self.ind_file)
-	self.final_archive = self.evo_strat.archive
-    moo_var=False
-
-    def SetBoundaries(self,bounds):
-        """
-        Stores the bounds of the parameters and creates a ``bounder`` object which bounds
-        every parameter into the range of 0-1 since the algorithms are using normalized values.
-
-        :param bounds: ``list`` containing the minimum and maximum values.
-
-        """
-        self.min_max=bounds
-        self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
+        self.kwargs['evaluator'] = self.mfun
+        self.kwargs['mutation_rate'] = option_obj.mutation_rate
+        self.kwargs['num_elites'] = int(self.pop_size/2)
 
 
 def selIBEA(population, mu, alpha=None, kappa=.05, tournament_n=4):
@@ -1588,7 +1311,7 @@ def selIBEA(population, mu, alpha=None, kappa=.05, tournament_n=4):
     return parents
 
 
-class deapIBEA(baseOptimizer):
+class deapIBEA(oldBaseOptimizer):
 
 
 
@@ -1721,7 +1444,7 @@ class deapIBEA(baseOptimizer):
         print self.bounder
 
 
-class deapNSGA(baseOptimizer):
+class deapNSGA(oldBaseOptimizer):
 
 
     def __init__(self,reader_obj,model_obj,option_obj,algo):
@@ -2048,7 +1771,7 @@ class SNES(DistributionBasedOptimizer):
 
 
 
-class NES(baseOptimizer):
+class NES(oldBaseOptimizer):
 
 
 
