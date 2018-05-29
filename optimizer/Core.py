@@ -61,6 +61,7 @@ class coreModul():
         self.moo_var = False
         self.deap_var = False
         self.brain_var = False
+        self.pygmo_var = False
         f_m={"MSE": "calc_ase",
                         "Spike count": "calc_spike",
                         "MSE (excl. spikes)": "calc_spike_ase",
@@ -234,6 +235,9 @@ class coreModul():
 
     def get_brain_var(self):
         return self.brain_var
+
+    def get_pygmo_var(self):
+        return self.pygmo_var
 
     def ReturnChParams(self,channel):
         """
@@ -418,6 +422,7 @@ class coreModul():
         self.moo_var = False
         self.deap_var = False
         self.brain_var = False
+        self.pygmo_var = False
         self.minind = 0
 
         if self.option_handler.evo_strat=="Classical EO":
@@ -440,6 +445,9 @@ class coreModul():
             self.optimizer=NSGAII(self.data_handler,self.model_handler,self.option_handler)
         if self.option_handler.evo_strat=="PAES":
             self.optimizer=PAES(self.data_handler,self.model_handler,self.option_handler)
+        if self.option_handler.evo_strat=="PYGMO DE":
+            self.optimizer=pygmoDE(self.data_handler,self.model_handler,self.option_handler)
+            self.pygmo_var = True
         if self.option_handler.evo_strat=="NSGAII-deap":
             self.optimizer=deapNSGA(self.data_handler,self.model_handler,self.option_handler,'nsga')
             self.moo_var = True
