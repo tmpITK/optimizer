@@ -59,16 +59,16 @@ import pygmo as pg
 
 global moo_var
 global brain_var
-global pygmo_var
 moo_var=False
 brain_var=False
-pygmo_var=False
+
 
 def setmodparams(reader_obje,model_obje,option_obje):
     global option
     global reader
     global model
     global usr_fun
+
     option=option_obje
     reader=reader_obje
     model=model_obje
@@ -239,9 +239,9 @@ def combineFeatures(candidates, args={}):
     """
 
     fitFun = fF(reader, model, option) # needed for features mode
-
     fitnes = []
     #option=optionHandler()
+
     features = option.feats
     #model_handler=modelHandler.modelHandlerNeuron(option_handler.model_path,option_handler.model_spec_dir,option_handler.base_dir)
     #print option.feats   #--> [<bound method fF.AP1_amp_abstr_data of <fitnessFunctions.fF instance at 0x7f669e957128>>] (ezt adja)
@@ -252,7 +252,7 @@ def combineFeatures(candidates, args={}):
         temp_fit = 0
     print candidates
 
-    if brain_var or pygmo_var:
+    if brain_var:
         candidates=[candidates]
     #model.hoc_ob.cellpickler('cell.cpickle')
     if option.type[-1]!= 'features':
@@ -449,7 +449,6 @@ class InspyredAlgorithmBasis(baseOptimizer):
             if hasattr(self.evo_strat, "archive"):
                 self.final_archive = self.evo_strat.archive
 
-
 class ScipyAlgorithmBasis(baseOptimizer):
 
     def __init__(self, reader_obj, model_obj, option_obj):
@@ -478,6 +477,35 @@ class ScipyAlgorithmBasis(baseOptimizer):
         tmp = ndarray.tolist(candidates)
         candidates = self.bounder(tmp, args)
         return self.ffun([candidates], args)[0]
+
+class PygmoAlgorithmBasis(baseOptimizer):
+
+    def __init__(self, reader_obj, model_obj, option_obj):
+        baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
+
+        pg.set_global_rng_seed(seed = self.seed)
+        self.prob = problem(option_obj.boundaries)
+
+        self.pop_kwargs = dict()
+
+    def Optimize(self):
+
+        self.population = pg.population(self.prob, **self.pop_kwargs)
+
+
+        self.algorithm.set_verbosity(1)
+        self.final_pop = self.algorithm.evolve(self.population)
+        uda = self.algorithm.extract(self.algo_type)
+        log = uda.get_log()
+        print(log)
+        with open ("stat_file.txt", 'w') as stat_file:  
+            for line in log:
+                for i,element in enumerate(line):
+                    if i == len(line)-1:
+                        stat_file.write(str(element))
+                    else:
+                        stat_file.write(str(element)+ ', ')
+                stat_file.write('\n')
 
 def normalize(v,args):
     """
@@ -585,53 +613,45 @@ class annealing(InspyredAlgorithmBasis):
 
 
 class problem:
+
     def __init__(self, bounds):
         self.bounds = bounds
         self.min_max = bounds
 
     def fitness(self, x):
-        return combineFeatures(normalize(x,self))
+        return combineFeatures([normalize(x,self)])
 
     def get_bounds(self):
         return(self.bounds[0], self.bounds[1])
 
 
-class pygmoDE(baseOptimizer):
+class PygmoDE(PygmoAlgorithmBasis):
 
     def __init__(self,reader_obj,model_obj,option_obj):
 
-        baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
-        global pygmo_var
-        pygmo_var=True
-
+        PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
     
         self.max_evaluation=int(option_obj.max_evaluation)
-        self.pop_size=int(option_obj.pop_size)
-
-        pg.set_global_rng_seed(seed = self.seed)
-
-        self.prob = problem(option_obj.boundaries)
-        self.algo = pg.algorithm(pg.de(gen=self.max_evaluation, ftol=1e-15, tol=1e-15))
-        self.pop = pg.population(self.prob, size = self.pop_size)
         
-    def Optimize(self):
+        self.pop_kwargs['size'] = int(option_obj.pop_size)
 
-        self.algo.set_verbosity(1)
-        self.final_pop = self.algo.evolve(self.pop)
-        uda = self.algo.extract(pg.de)
-        log = uda.get_log()
-        print(log)
-        with open ("stat_file.txt", 'w') as stat_file:  
-            for line in log:
-                for i,element in enumerate(line):
-                    if i == len(line)-1:
-                        stat_file.write(str(element))
-                    else:
-                        stat_file.write(str(element)+ ', ')
-                stat_file.write('\n')
+        self.algo_type = pg.de        
+        self.algorithm = pg.algorithm(pg.de(gen=self.max_evaluation, ftol=1e-15, tol=1e-15))
 
+class PygmoSADE(PygmoAlgorithmBasis):
 
+    def __init__(self,reader_obj,model_obj,option_obj):
+        print("SADEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+        PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
 
+        self.max_evaluation=int(option_obj.max_evaluation)
+
+        self.pop_kwargs['size'] = int(option_obj.pop_size)
+
+        self.algo_type = pg.sade
+        self.algorithm = pg.algorithm(pg.sade(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15))
+
+        
 class PSO(InspyredAlgorithmBasis):
     """
     Implements the ``Particle Swarm`` algorithm for minimization from the ``inspyred`` package.
@@ -674,7 +694,19 @@ class PSO(InspyredAlgorithmBasis):
         #self.neighborhood_size=int(round(option_obj.neighborhood_size))
         '''
         self.kwargs["topology"] = inspyred.swarm.topologies.star_topology
+    def Optimize(self):
+        """
+        Performs the optimization.
+        """
+        logger = logging.getLogger('inspyred.ec')
+        logger.setLevel(logging.DEBUG)
+        file_handler = logging.FileHandler('inspyred.log', mode='w')
+        file_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
+        self.final_pop = self.evo_strat.evolve(**self.kwargs)
 
 class basinHopping(ScipyAlgorithmBasis):
     """
@@ -1016,8 +1048,6 @@ class grid(baseOptimizer):
         self.bounder=ec.Bounder([0]*len(self.min_max[0]),[1]*len(self.min_max[1]))
 
 
-
-
 class simpleEO(InspyredAlgorithmBasis):
     """
     Implements a custom version of ``Evolution Strategy`` algorithm for minimization from the ``inspyred`` package.
@@ -1159,7 +1189,8 @@ class NSGAII(InspyredAlgorithmBasis):
     """
     def __init__(self,reader_obj,model_obj,option_obj):
         InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
-
+        global moo_var
+        moo_var = True
         self.evo_strat=ec.emo.NSGA2(self.rand)
         self.evo_strat.terminator=terminators.generation_termination
         self.evo_strat.selector=inspyred.ec.selectors.default_selection
@@ -1172,7 +1203,6 @@ class NSGAII(InspyredAlgorithmBasis):
         else:
             self.evo_strat.observer=[observers.file_observer]
 
-        self.kwargs['evaluator'] = self.mfun
 
 
 class PAES(InspyredAlgorithmBasis):
@@ -1193,6 +1223,9 @@ class PAES(InspyredAlgorithmBasis):
     def __init__(self,reader_obj,model_obj,option_obj):
         InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
 
+        global moo_var
+        moo_var = True
+
         self.evo_strat=ec.emo.PAES(self.rand)
         self.evo_strat.terminator=terminators.generation_termination
         self.evo_strat.selector=inspyred.ec.selectors.default_selection
@@ -1204,7 +1237,6 @@ class PAES(InspyredAlgorithmBasis):
         else:
             self.evo_strat.observer=[observers.file_observer]
 
-        self.kwargs['evaluator'] = self.mfun
         self.kwargs['mutation_rate'] = option_obj.mutation_rate
         self.kwargs['num_elites'] = int(self.pop_size/2)
 
