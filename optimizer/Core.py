@@ -469,7 +469,6 @@ class coreModul():
 
         start_time=time.time()
         self.optimizer.Optimize()
-
         stop_time=time.time()
 
         self.cands = []
@@ -489,6 +488,9 @@ class coreModul():
             self.cands=self.optimizer.final_pop[0]
             self.fits=self.optimizer.final_pop[1]
         elif(self.option_handler.evo_strat.split(" ")[0] == "PYGMO"):
+            '''
+            Currently only the best individual with its fitness is passed
+            '''
             self.cands = [self.optimizer.best]
             self.fits = [self.optimizer.best_fitness]
             print(self.cands, "CANDS")

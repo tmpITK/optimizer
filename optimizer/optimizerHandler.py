@@ -265,6 +265,7 @@ def combineFeatures(candidates, args={}):
 
     :return: the ``list`` of fitness values corresponding to the parameter sets
     """
+    print("COMBINE FEATURES")
 
     fitFun = fF(reader, model, option) # needed for features mode
     fitnes = []
@@ -531,6 +532,16 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
         self.pop_kwargs = dict()
 
+    def write_statistics_file(self):
+        with open ("stat_file.txt", 'w') as stat_file:  
+            for line in self.log:
+                for i,element in enumerate(line):
+                    if i == len(line)-1:
+                        stat_file.write(str(element))
+                    else:
+                        stat_file.write(str(element)+ ', ')
+                stat_file.write('\n')
+
     def Optimize(self):
 
         self.population = pg.population(self.prob, **self.pop_kwargs)
@@ -538,17 +549,12 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
         self.algorithm.set_verbosity(1)
         self.evolved_pop = self.algorithm.evolve(self.population)
+
         uda = self.algorithm.extract(self.algo_type)
-        log = uda.get_log()
+        self.log = uda.get_log()
         print(log)
-        with open ("stat_file.txt", 'w') as stat_file:  
-            for line in log:
-                for i,element in enumerate(line):
-                    if i == len(line)-1:
-                        stat_file.write(str(element))
-                    else:
-                        stat_file.write(str(element)+ ', ')
-                stat_file.write('\n')
+        self.write_statistics_file()
+
         self.best = normalize(self.evolved_pop.champion_x, self) 
         self.best_fitness = self.evolved_pop.champion_f
 
@@ -576,6 +582,7 @@ class bounderObject(object):
     def __init__(self, xmax, xmin ):
             self.lower_bound = np.array(xmax)
             self.upper_bound = np.array(xmin)
+
     def __call__(self, **kwargs):
         """
         Performs the bounding by deciding if the given point is in the defined region of the parameter space.
@@ -695,13 +702,13 @@ class PSO(InspyredAlgorithmBasis):
         self.kwargs["inertia"] = option_obj.inertia
         self.kwargs["cognitive_rate"] = option_obj.cognitive_rate
         self.kwargs["social_rate"] = option_obj.social_rate
-        '''
-        if (self.topology == "Star"):
+        
+        if (option_obj.topology == "Star"):
             self.evo_strat.topology = inspyred.swarm.topologies.star_topology
-        elif (self.topology == "Ring"):
+        elif (option_obj.topology == "Ring"):
             self.evo_strat.topology = inspyred.swarm.topologies.ring_topology
-        #self.neighborhood_size=int(round(option_obj.neighborhood_size))
-        '''
+            self.neighborhood_size=int(round(option_obj.neighborhood_size))
+
         self.kwargs["topology"] = inspyred.swarm.topologies.star_topology
     def Optimize(self):
         """
