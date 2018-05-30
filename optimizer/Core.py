@@ -485,6 +485,11 @@ class coreModul():
         elif self.brain_var:
             self.cands=self.optimizer.final_pop[0]
             self.fits=self.optimizer.final_pop[1]
+        elif(self.option_handler.evo_strat.split(" ")[0] == "PYGMO"):
+            self.cands = [self.optimizer.best]
+            self.fits = [self.optimizer.best_fitness]
+            print(self.cands, "CANDS")
+            print(self.fits, "FITS")
         else:
             self.optimizer.final_pop.sort(reverse=True)
             for i in range(len(self.optimizer.final_pop)):

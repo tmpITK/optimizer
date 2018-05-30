@@ -269,6 +269,7 @@ def combineFeatures(candidates, args={}):
         if option.output_level == "1":
             print l
         l = ReNormalize(l)
+        print(l, "renormalized")
         if option.output_level == "1":
             print l
         for k in range(k_range):     #for k in range(reader.number_of_traces()):
@@ -318,6 +319,7 @@ def combineFeatures(candidates, args={}):
     if brain_var:
         return fitnes[0]
     else:
+        print(fitnes)
         return fitnes
 
 
@@ -494,7 +496,7 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
 
         self.algorithm.set_verbosity(1)
-        self.final_pop = self.algorithm.evolve(self.population)
+        self.evolved_pop = self.algorithm.evolve(self.population)
         uda = self.algorithm.extract(self.algo_type)
         log = uda.get_log()
         print(log)
@@ -506,6 +508,10 @@ class PygmoAlgorithmBasis(baseOptimizer):
                     else:
                         stat_file.write(str(element)+ ', ')
                 stat_file.write('\n')
+        self.best = normalize(self.evolved_pop.champion_x, self) 
+        self.best_fitness = self.evolved_pop.champion_f
+
+
 
 def normalize(v,args):
     """
