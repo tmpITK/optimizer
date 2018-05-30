@@ -367,6 +367,7 @@ class coreModul():
                 optional parameter shared by every algorithm
                     * starting_points
         """
+        self.model_handler.hoc_obj = None
         self.grid_result=None
         if args!=None:
             #print "args: ",args
@@ -530,6 +531,7 @@ class coreModul():
                 out_handler.close()
         else:
             try:
+                self.model_handler.load_neuron()
                 s=self.option_handler.GetUFunString()
                 s=replace(s,"h.","self.model_handler.hoc_obj.")
                 s=replace(s,"h(","self.model_handler.hoc_obj(")

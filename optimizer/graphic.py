@@ -1095,7 +1095,7 @@ class modelLayer(wx.Frame):
             self.core.LoadModel({"model" : [self.model_file, self.spec_file],
                                  "simulator" : self.dd_type.GetItems()[self.dd_type.GetSelection()],
                                  "sim_command" : self.sim_path.GetValue()})
-
+            self.core.model_handler.load_neuron()
             temp = self.core.model_handler.GetParameters()
             #print temp
             if temp!=None:
