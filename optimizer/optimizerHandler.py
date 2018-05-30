@@ -55,7 +55,7 @@ from pybrain.optimization.distributionbased.distributionbased import Distributio
 from scipy import dot, exp, log, sqrt, floor, ones, randn
 from pybrain.tools.rankingfunctions import RankingFunction
 
-#import pygmo as pg
+import pygmo as pg
 
 global moo_var
 global brain_var
@@ -238,9 +238,9 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
     def __init__(self, reader_obj, model_obj, option_obj):
         baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
-
+        
         pg.set_global_rng_seed(seed = self.seed)
-        self.prob = problem(option_obj.boundaries)
+        self.prob = problem(self.ffun,option_obj.boundaries)
 
         self.pop_kwargs = dict()
 
@@ -262,6 +262,21 @@ class PygmoAlgorithmBasis(baseOptimizer):
                     else:
                         stat_file.write(str(element)+ ', ')
                 stat_file.write('\n')
+
+class problem:
+    
+    def __init__(self, fitnes_fun, bounds):
+        self.bounds = bounds
+        self.min_max = bounds
+        self.fitnes_fun = fitnes_fun
+
+    def fitness(self, x):
+        return self.fitnes_fun([normalize(x,self)])
+
+    def get_bounds(self):
+        return(self.bounds[0], self.bounds[1])
+
+
 
 def normalize(v,args):
     """
@@ -366,19 +381,6 @@ class annealing(InspyredAlgorithmBasis):
             self.evo_strat.observer=[observers.population_observer,observers.file_observer]
         else:
             self.evo_strat.observer=[observers.file_observer]
-
-
-class problem:
-
-    def __init__(self, bounds):
-        self.bounds = bounds
-        self.min_max = bounds
-
-    def fitness(self, x):
-        return combineFeatures([normalize(x,self)])
-
-    def get_bounds(self):
-        return(self.bounds[0], self.bounds[1])
 
 
 class PygmoDE(PygmoAlgorithmBasis):

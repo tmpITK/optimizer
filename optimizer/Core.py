@@ -424,7 +424,7 @@ class coreModul():
             self.optimizer=simpleEO(self.data_handler,self.model_handler,self.option_handler)
         if self.option_handler.evo_strat=="Simulated Annealing":
             self.optimizer=annealing(self.data_handler,self.model_handler,self.option_handler)
-	if self.option_handler.evo_strat=="Particle Swarm":
+        if self.option_handler.evo_strat=="Particle Swarm":
             self.optimizer=PSO(self.data_handler,self.model_handler,self.option_handler)
         if self.option_handler.evo_strat=="Basinhopping":
             self.optimizer=basinHopping(self.data_handler,self.model_handler,self.option_handler)
@@ -440,6 +440,8 @@ class coreModul():
             self.optimizer=NSGAII(self.data_handler,self.model_handler,self.option_handler)
         if self.option_handler.evo_strat=="PAES":
             self.optimizer=PAES(self.data_handler,self.model_handler,self.option_handler)
+        if self.option_handler.evo_strat=="PYGMO DE":
+            self.optimizer=PygmoDE(self.data_handler,self.model_handler,self.option_handler)
         if self.option_handler.evo_strat=="NSGAII-deap":
             self.optimizer=deapNSGA(self.data_handler,self.model_handler,self.option_handler,'nsga')
             self.moo_var = True
