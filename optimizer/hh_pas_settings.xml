@@ -5,13 +5,13 @@
   <f_tol>None</f_tol>
   <max_evaluation>10.0</max_evaluation>
   <spike_window>40.0</spike_window>
-  <evo_strat>NSGAII-deap</evo_strat>
+  <evo_strat>Particle Swarm</evo_strat>
   <seed>1235.0</seed>
   <m_gauss>None</m_gauss>
   <run_controll_vrest>-65.0</run_controll_vrest>
   <starting_points>None</starting_points>
   <cooling_rate>None</cooling_rate>
-  <pop_size>20.0</pop_size>
+  <pop_size>10.0</pop_size>
   <adjusted_params>['soma 0 hh gnabar_hh', 'soma 0 hh gkbar_hh', 'soma 0 hh gl_hh']</adjusted_params>
   <num_repet>None</num_repet>
   <crossover_rate>None</crossover_rate>

@@ -62,6 +62,7 @@ global brain_var
 moo_var=False
 brain_var=False
 
+
 def uniformz(random,size,bounds):
     """
     Creates random values from a uniform distribution. Used to create initial population.
@@ -111,7 +112,6 @@ class baseOptimizer():
     def __init__(self, reader_obj, model_obj, option_obj):
         self.fit_obj = fF(reader_obj, model_obj, option_obj)
         self.SetFFun(option_obj)
-
         self.rand = random
         self.seed = int(option_obj.seed)
         self.rand.seed(self.seed)
@@ -238,7 +238,7 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
     def __init__(self, reader_obj, model_obj, option_obj):
         baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
-        
+
         pg.set_global_rng_seed(seed = self.seed)
         self.prob = problem(self.ffun,option_obj.boundaries)
 
@@ -251,6 +251,7 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
         self.algorithm.set_verbosity(1)
         self.final_pop = self.algorithm.evolve(self.population)
+
         uda = self.algorithm.extract(self.algo_type)
         log = uda.get_log()
         print(log)
@@ -264,7 +265,7 @@ class PygmoAlgorithmBasis(baseOptimizer):
                 stat_file.write('\n')
 
 class problem:
-    
+
     def __init__(self, fitnes_fun, bounds):
         self.bounds = bounds
         self.min_max = bounds

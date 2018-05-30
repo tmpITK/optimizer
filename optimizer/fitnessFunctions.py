@@ -11,6 +11,7 @@ from inspyred import ec
 from inspyred.ec import emo
 from inspyred.ec import variators
 from inspyred.ec import observers
+import modelHandler
 
 try:
     import copy_reg
@@ -19,7 +20,6 @@ except:
 
 from types import MethodType
 
-from modelHandler import externalHandler
 
 def _pickle_method(method):
     func_name = method.im_func.__name__
@@ -966,7 +966,6 @@ class fF(object):
             window = int(self.option.spike_window)
         else:
             window=None
-
         self.model.load_neuron()
 
         self.model.CreateStimuli(self.option.GetModelStim())
@@ -1018,6 +1017,8 @@ class fF(object):
             if self.option.output_level == "1":
                 print "current fitness: ",temp_fit
             temp_fit = 0
+
+        self.model=modelHandler.modelHandlerNeuron(self.option.model_path,self.option.model_spec_dir,self.option.base_dir)
 
         return self.fitnes
 
