@@ -421,41 +421,44 @@ class coreModul():
         self.brain_var = False
 
         self.minind = 0
+        
 
         if self.option_handler.evo_strat=="Classical EO":
             self.optimizer=simpleEO(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="Simulated Annealing":
+        elif self.option_handler.evo_strat=="Simulated Annealing":
             self.optimizer=annealing(self.data_handler,self.model_handler,self.option_handler)
-	if self.option_handler.evo_strat=="Particle Swarm":
+        elif self.option_handler.evo_strat=="Particle Swarm":
             self.optimizer=PSO(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="Basinhopping":
+        elif self.option_handler.evo_strat=="Basinhopping":
             self.optimizer=basinHopping(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="Nelder-Mead":
+        elif self.option_handler.evo_strat=="Nelder-Mead":
             self.optimizer=fmin(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="L-BFGS-B":
+        elif self.option_handler.evo_strat=="L-BFGS-B":
             self.optimizer=L_BFGS_B(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="Differential Evolution":
+        elif self.option_handler.evo_strat=="Differential Evolution":
             self.optimizer=DEA(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="Random Search":
+        elif self.option_handler.evo_strat=="Random Search":
             self.optimizer=RandomSearch(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="NSGAII":
+        elif self.option_handler.evo_strat=="NSGAII":
             self.optimizer=NSGAII(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="PAES":
+        elif self.option_handler.evo_strat=="PAES":
             self.optimizer=PAES(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="PYGMO DE":
+        elif self.option_handler.evo_strat=="PYGMO DE":
             self.optimizer=PygmoDE(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="PYGMO SADE":
+        elif self.option_handler.evo_strat=="PYGMO SADE":
             self.optimizer=PygmoSADE(self.data_handler,self.model_handler,self.option_handler)
-        if self.option_handler.evo_strat=="NSGAII-deap":
+        elif self.option_handler.evo_strat=="PYGMO PSO":
+            self.optimizer=PygmoPSO(self.data_handler,self.model_handler,self.option_handler)
+        elif self.option_handler.evo_strat=="NSGAII-deap":
             self.optimizer=deapNSGA(self.data_handler,self.model_handler,self.option_handler,'nsga')
             self.moo_var = True
-        if self.option_handler.evo_strat=="SPEA2":
+        elif self.option_handler.evo_strat=="SPEA2":
             self.optimizer=deapNSGA(self.data_handler,self.model_handler,self.option_handler,'spea')
             self.moo_var = True
-        if self.option_handler.evo_strat=="IBEA":
+        elif self.option_handler.evo_strat=="IBEA":
             self.optimizer=deapIBEA(self.data_handler,self.model_handler,self.option_handler)
             self.moo_var = True
-        if self.option_handler.evo_strat=="NES":
+        elif self.option_handler.evo_strat=="NES":
             self.optimizer=NES(self.data_handler,self.model_handler,self.option_handler)
             self.brain_var = True
 
