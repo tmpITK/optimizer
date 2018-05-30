@@ -63,6 +63,40 @@ moo_var=False
 brain_var=False
 
 
+def normalize(values,args):
+    """
+    Normalizes the values of the given ``list`` using the defined boundaries.
+
+    :param v: the ``list`` of values
+    :param args: an object which has a ``min_max`` attribute which consists of two ``lists``
+        each with the same number of values as the given list
+
+    :return: the ``list`` of normalized values
+
+    """
+    copied_values = copy.copy(values)
+    for i in range(len(values)):
+        copied_values[i]=(values[i]-args.min_max[0][i])/(args.min_max[1][i]-args.min_max[0][i])
+    return copied_values
+
+
+def uniform(random,args):
+    """
+    Creates random values from a uniform distribution. Used to create initial population.
+
+    :param random: random number generator object
+    :param args: ``dictionary``, must contain key "num_params" and either "_ec" or "self"
+
+    :return: the created random values in a ``list``
+
+    """
+    size=args.get("num_params")
+    bounds=args.get("_ec",args.get("self")).bounder
+    candidate=[]
+    for i in range(int(size)):
+        candidate.append(random.uniform(bounds.lower_bound[i],bounds.upper_bound[i]))
+    return candidate
+
 def uniformz(random,size,bounds):
     """
     Creates random values from a uniform distribution. Used to create initial population.
@@ -74,8 +108,8 @@ def uniformz(random,size,bounds):
 
     """
     candidate=[]
-    for n in range(int(size)):
-        candidate.append(random.uniform(bounds.lower_bound[n],bounds.upper_bound[n]))
+    for i in range(int(size)):
+        candidate.append(random.uniform(bounds.lower_bound[i],bounds.upper_bound[i]))
     return candidate
 
 class oldBaseOptimizer():
@@ -240,23 +274,12 @@ class PygmoAlgorithmBasis(baseOptimizer):
         baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
 
         pg.set_global_rng_seed(seed = self.seed)
-        self.prob = problem(self.ffun,option_obj.boundaries)
+        self.prob = Problem(self.ffun,option_obj.boundaries)
 
         self.pop_kwargs = dict()
-
-    def Optimize(self):
-
-        self.population = pg.population(self.prob, **self.pop_kwargs)
-
-
-        self.algorithm.set_verbosity(1)
-        self.final_pop = self.algorithm.evolve(self.population)
-
-        uda = self.algorithm.extract(self.algo_type)
-        log = uda.get_log()
-        print(log)
-        with open ("stat_file.txt", 'w') as stat_file:
-            for line in log:
+    def write_statistics_file(self):
+        with open ("stat_file.txt", 'w') as stat_file:  
+            for line in self.log:
                 for i,element in enumerate(line):
                     if i == len(line)-1:
                         stat_file.write(str(element))
@@ -264,8 +287,24 @@ class PygmoAlgorithmBasis(baseOptimizer):
                         stat_file.write(str(element)+ ', ')
                 stat_file.write('\n')
 
-class problem:
+    def Optimize(self):
 
+        self.population = pg.population(self.prob, **self.pop_kwargs)
+
+
+        self.algorithm.set_verbosity(1)
+        self.evolved_pop = self.algorithm.evolve(self.population)
+
+        uda = self.algorithm.extract(self.algo_type)
+        self.log = uda.get_log()
+        print(log)
+        self.write_statistics_file()
+
+        self.best = normalize(self.evolved_pop.champion_x, self) 
+        self.best_fitness = self.evolved_pop.champion_f
+
+class Problem:
+    
     def __init__(self, fitnes_fun, bounds):
         self.bounds = bounds
         self.min_max = bounds
@@ -279,40 +318,6 @@ class problem:
 
 
 
-def normalize(v,args):
-    """
-    Normalizes the values of the given ``list`` using the defined boundaries.
-
-    :param v: the ``list`` of values
-    :param args: an object which has a ``min_max`` attribute which consists of two ``lists``
-        each with the same number of values as the given list
-
-    :return: the ``list`` of normalized values
-
-    """
-    c=copy.copy(v)
-    for i in range(len(v)):
-        c[i]=(v[i]-args.min_max[0][i])/(args.min_max[1][i]-args.min_max[0][i])
-    return c
-
-
-
-def uniform(random,args):
-    """
-    Creates random values from a uniform distribution. Used to create initial population.
-
-    :param random: random number generator object
-    :param args: ``dictionary``, must contain key "num_params" and either "_ec" or "self"
-
-    :return: the created random values in a ``list``
-
-    """
-    size=args.get("num_params")
-    bounds=args.get("_ec",args.get("self")).bounder
-    candidate=[]
-    for n in range(int(size)):
-        candidate.append(random.uniform(bounds.lower_bound[n],bounds.upper_bound[n]))
-    return candidate
 
 class my_candidate():
     """
@@ -385,22 +390,22 @@ class annealing(InspyredAlgorithmBasis):
 
 
 class PygmoDE(PygmoAlgorithmBasis):
-
+    
     def __init__(self,reader_obj,model_obj,option_obj):
 
         PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
-
+    
         self.max_evaluation=int(option_obj.max_evaluation)
-
+        
         self.pop_kwargs['size'] = int(option_obj.pop_size)
 
-        self.algo_type = pg.de
+        self.algo_type = pg.de        
         self.algorithm = pg.algorithm(pg.de(gen=self.max_evaluation, ftol=1e-15, tol=1e-15))
 
 class PygmoSADE(PygmoAlgorithmBasis):
 
     def __init__(self,reader_obj,model_obj,option_obj):
-        print("SADEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+
         PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
 
         self.max_evaluation=int(option_obj.max_evaluation)
@@ -409,6 +414,18 @@ class PygmoSADE(PygmoAlgorithmBasis):
 
         self.algo_type = pg.sade
         self.algorithm = pg.algorithm(pg.sade(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15))
+
+class PygmoPSO(PygmoAlgorithmBasis):
+    
+    def __init__(self,reader_obj,model_obj,option_obj):
+        PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
+
+        self.max_evaluation=int(option_obj.max_evaluation)
+
+        self.pop_kwargs['size'] = int(option_obj.pop_size)
+        
+        self.algo_type = pg.pso
+        self.algorithm = pg.algorithm(pg.pso(gen=self.max_evaluation))
 
 
 class PSO(InspyredAlgorithmBasis):
