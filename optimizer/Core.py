@@ -519,6 +519,7 @@ class coreModul():
                 if isinstance(self.model_handler, externalHandler):
                     out_handler.write(str(k)+"\n")
                 else:
+                    self.model_handler.load_neuron()
                     if len(tmp)==4:
                         self.model_handler.SetChannelParameters(tmp[0], tmp[1], tmp[2], tmp[3], k)
                     else:

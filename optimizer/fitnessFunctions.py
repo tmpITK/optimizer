@@ -19,6 +19,8 @@ except:
 
 from types import MethodType
 
+from modelHandler import externalHandler
+
 def _pickle_method(method):
     func_name = method.im_func.__name__
     obj = method.im_self
@@ -967,8 +969,6 @@ class fF(object):
 
         self.model.load_neuron()
 
-
-
         self.model.CreateStimuli(self.option.GetModelStim())
 
         if self.option.type[-1]!= 'features':
@@ -1033,7 +1033,6 @@ class fF(object):
             for every function instance i.e every component
 
         """
-        self.model.load_neuron()
 
         features = self.option.feats
         weigths = self.option.weights

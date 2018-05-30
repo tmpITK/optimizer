@@ -10,7 +10,7 @@ except:
     import copyreg
 
 from types import MethodType
-
+from neuron import h
 
 
 class externalHandler():
@@ -70,6 +70,8 @@ class externalHandler():
     def SetStimuli(self,p,e):
         pass
 
+    def load_neuron(self):
+        pass
 
 # class to handle the neuron models
 class modelHandlerNeuron():
@@ -88,8 +90,8 @@ class modelHandlerNeuron():
         self.special=special_path
         self.model=model_path
         os.chdir(self.special)
-        from neuron import h
-        from nrn import *
+        #from neuron import h
+        #from nrn import *
 
         self.hoc_obj=None
         self.vec=None
@@ -99,7 +101,7 @@ class modelHandlerNeuron():
         self.sections={}
 
     def load_neuron(self):
-        from neuron import h
+        #from neuron import h
         self.hoc_obj=h
         self.hoc_obj.load_file(str(self.model))
         self.hoc_obj.load_file("stdrun.hoc")
