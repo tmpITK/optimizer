@@ -12,6 +12,34 @@ from inspyred.ec import emo
 from inspyred.ec import variators
 from inspyred.ec import observers
 
+try:
+    import copy_reg
+except:
+    import copyreg
+
+from types import MethodType
+
+def _pickle_method(method):
+    func_name = method.im_func.__name__
+    obj = method.im_self
+    cls = method.im_class
+    return _unpickle_method, (func_name, obj, cls)
+
+def _unpickle_method(func_name, obj, cls):
+    for cls in cls.mro():
+        try:
+            func = cls.__dict__[func_name]
+        except KeyError:
+            pass
+        else:
+            break
+    return func.__get__(obj, cls)
+
+try:
+	copyreg.pickle(MethodType, _pickle_method, _unpickle_method)
+except:
+	copy_reg.pickle(MethodType, _pickle_method, _unpickle_method)
+
 def frange(start, stop, step):
         """
         Generates range of real values.
@@ -25,8 +53,6 @@ def frange(start, stop, step):
         while r < stop:
             yield r
             r += step
-
-
 
 
 class spike_frame():
@@ -59,7 +85,7 @@ class spike(spike_frame):
         self.s = spike#vector, with the spike in it
 
 
-class fF():
+class fF(object):
     """
     Class encapsulating the implemented error functions.
 
@@ -97,6 +123,8 @@ class fF():
                         "PPTD" : self.pyelectro_pptd}
 
         try:
+
+            #self.model.load_neuron()
             s = self.option.GetUFunString()
             s = replace(s, "h.", "self.model.hoc_obj.")
             exec(compile(replace(s, "h(", "self.model.hoc_obj("), '<string>', 'exec'))
@@ -106,6 +134,7 @@ class fF():
             print "Your function contained syntax errors!! Please fix them!"
         except IndexError:
             pass
+
 
 
     def setParameters(self, section, params):
@@ -935,6 +964,11 @@ class fF():
             window = int(self.option.spike_window)
         else:
             window=None
+
+        self.model.load_neuron()
+
+
+
         self.model.CreateStimuli(self.option.GetModelStim())
 
         if self.option.type[-1]!= 'features':
@@ -999,6 +1033,8 @@ class fF():
             for every function instance i.e every component
 
         """
+        self.model.load_neuron()
+
         features = self.option.feats
         weigths = self.option.weights
         fit_list = []
@@ -1102,35 +1138,3 @@ class fF():
 
 
         return self.fitnes
-
-
-    def getErrorComponents(self, index_of_trace, model_output):
-        """
-        Creates the components of the fitness value for a pair of traces using the fitness functions
-        and the weigths specified in the ``option`` object.
-
-        :param index_of_trace: the index of the input trace (in case of multiple traces)
-        :param model_output: the model trace as ``list``
-
-        :return: a ``list`` containing the weight, the function instance, and the component's fitness value
-            for every function instance i.e every component
-
-        """
-        features = self.option.feats
-        weigths = self.option.weights
-        fit_list = []
-        window = self.option.spike_window
-        try:
-            add_data = [spike_frame(n - window, 0, n, 1, n + 50, 0) for n in self.reader.additional_data.get(index_of_trace)]
-        except AttributeError:
-            add_data = None
-        args = {}
-        args["add_data"] = add_data
-        if (self.option.type[-1]!='features'):
-            for f, w in zip(features, weigths):
-                fit_list.append([w, f, (f(model_output, self.reader.data.GetTrace(index_of_trace), args))])
-        else:
-            for f, w in zip(features, weigths):
-                fit_list.append([w, f, self.FFun_for_Features(model_output,
-                                                    self.reader.features_data, f, index_of_trace, args)])# index_of_trace is index of stim_amp here
-        return fit_list

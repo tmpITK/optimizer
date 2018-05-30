@@ -4,6 +4,15 @@ from string import index,split
 from traceHandler import Trace
 import optimizerHandler
 
+try:
+    import copy_reg
+except:
+    import copyreg
+
+from types import MethodType
+
+
+
 class externalHandler():
     """
     Handles models which are using a simulator other than Neuron.
@@ -81,6 +90,16 @@ class modelHandlerNeuron():
         os.chdir(self.special)
         from neuron import h
         from nrn import *
+
+        self.hoc_obj=None
+        self.vec=None
+        self.stimulus=None
+        self.record=[]
+        self.spike_times=None
+        self.sections={}
+
+    def load_neuron(self):
+        from neuron import h
         self.hoc_obj=h
         self.hoc_obj.load_file(str(self.model))
         self.hoc_obj.load_file("stdrun.hoc")
@@ -93,7 +112,7 @@ class modelHandlerNeuron():
         for n in h.allsec():
             self.sections[str(h.secname())]=n
         self.channels={}
-        optimizerHandler.setmods(self.hoc_obj,self.sections)
+        #optimizerHandler.setmods(self.hoc_obj,self.sections)
         for sec in h.allsec():
             for seg in sec:
                 for mech in seg:
