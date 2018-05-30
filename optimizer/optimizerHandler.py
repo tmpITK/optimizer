@@ -80,6 +80,53 @@ def setmods(hoc_ob,secs):
     hoc_obj=hoc_ob
     sections=secs
 
+def normalize(values,args):
+    """
+    Normalizes the values of the given ``list`` using the defined boundaries.
+
+    :param v: the ``list`` of values
+    :param args: an object which has a ``min_max`` attribute which consists of two ``lists``
+        each with the same number of values as the given list
+
+    :return: the ``list`` of normalized values
+
+    """
+    copied_values = copy.copy(values)
+    for i in range(len(values)):
+        copied_values[i]=(values[i]-args.min_max[0][i])/(args.min_max[1][i]-args.min_max[0][i])
+    return copied_values
+
+def ReNormalize(values):
+    """
+    Performs a re-normalization based on the parameter bounds specified in the ``option`` object.
+
+    :param l: a ``list`` of real values to be re-normalized
+
+    :return: the re-normalized values in a ``list``
+
+    """
+    tmp = []
+    for i in range(len(values)):
+        tmp.append(values[i] * (option.boundaries[1][i] - option.boundaries[0][i]) + option.boundaries[0][i])
+    return tmp
+
+def uniform(random,args):
+    """
+    Creates random values from a uniform distribution. Used to create initial population.
+
+    :param random: random number generator object
+    :param args: ``dictionary``, must contain key "num_params" and either "_ec" or "self"
+
+    :return: the created random values in a ``list``
+
+    """
+    size=args.get("num_params")
+    bounds=args.get("_ec",args.get("self")).bounder
+    candidate=[]
+    for i in range(int(size)):
+        candidate.append(random.uniform(bounds.lower_bound[i],bounds.upper_bound[i]))
+    return candidate
+
 def uniformz(random,size,bounds):
     """
     Creates random values from a uniform distribution. Used to create initial population.
@@ -91,8 +138,8 @@ def uniformz(random,size,bounds):
 
     """
     candidate=[]
-    for n in range(int(size)):
-        candidate.append(random.uniform(bounds.lower_bound[n],bounds.upper_bound[n]))
+    for i in range(int(size)):
+        candidate.append(random.uniform(bounds.lower_bound[i],bounds.upper_bound[i]))
     return candidate
 
 def SetChannelParameters(section,segment,channel,params,values):
@@ -143,7 +190,6 @@ def setParameters(section, params):
         #cal the user def.ed function
         try:
             s = option.GetUFunString()
-            print s
             s = replace(s, "h.", "self.model.hoc_obj.")
             exec(compile(replace(s, "h(", "self.model.hoc_obj("), '<string>', 'exec'))
             usr_fun_name = option.GetUFunString().split("\n")[4][option.GetUFunString().split("\n")[4].find(" ") + 1:option.GetUFunString().split("\n")[4].find("(")]
@@ -201,24 +247,6 @@ def modelRunner(candidates, act_trace_idx):
 
 
     return error
-
-
-
-
-def ReNormalize(l):
-    """
-    Performs a re-normalization based on the parameter bounds specified in the ``option`` object.
-
-    :param l: a ``list`` of real values to be re-normalized
-
-    :return: the re-normalized values in a ``list``
-
-    """
-    tmp = []
-    for i in range(len(l)):
-        tmp.append(l[i] * (option.boundaries[1][i] - option.boundaries[0][i]) + option.boundaries[0][i])
-    return tmp
-
 
 def combineFeatures(candidates, args={}):
     """
@@ -348,6 +376,19 @@ class oldBaseOptimizer():
                 option_obj.feats=map(lambda x:self.fit_obj.calc_dict[x],option_obj.feats)
             except KeyError:
                 print "error with fitness function: ",option_obj.feats," not in: ",self.fit_obj.calc_dict.keys()
+
+class Problem:
+    
+    def __init__(self, bounds):
+        self.bounds = bounds
+        self.min_max = bounds
+
+    def fitness(self, x):
+        return combineFeatures([normalize(x,self)])
+
+    def get_bounds(self):
+        return(self.bounds[0], self.bounds[1])
+
 
 # to generate a new set of parameters
 class baseOptimizer():
@@ -486,7 +527,7 @@ class PygmoAlgorithmBasis(baseOptimizer):
         baseOptimizer.__init__(self, reader_obj, model_obj, option_obj)
 
         pg.set_global_rng_seed(seed = self.seed)
-        self.prob = problem(option_obj.boundaries)
+        self.prob = Problem(option_obj.boundaries)
 
         self.pop_kwargs = dict()
 
@@ -510,43 +551,6 @@ class PygmoAlgorithmBasis(baseOptimizer):
                 stat_file.write('\n')
         self.best = normalize(self.evolved_pop.champion_x, self) 
         self.best_fitness = self.evolved_pop.champion_f
-
-
-
-def normalize(v,args):
-    """
-    Normalizes the values of the given ``list`` using the defined boundaries.
-
-    :param v: the ``list`` of values
-    :param args: an object which has a ``min_max`` attribute which consists of two ``lists``
-        each with the same number of values as the given list
-
-    :return: the ``list`` of normalized values
-
-    """
-    c=copy.copy(v)
-    for i in range(len(v)):
-        c[i]=(v[i]-args.min_max[0][i])/(args.min_max[1][i]-args.min_max[0][i])
-    return c
-
-
-
-def uniform(random,args):
-    """
-    Creates random values from a uniform distribution. Used to create initial population.
-
-    :param random: random number generator object
-    :param args: ``dictionary``, must contain key "num_params" and either "_ec" or "self"
-
-    :return: the created random values in a ``list``
-
-    """
-    size=args.get("num_params")
-    bounds=args.get("_ec",args.get("self")).bounder
-    candidate=[]
-    for n in range(int(size)):
-        candidate.append(random.uniform(bounds.lower_bound[n],bounds.upper_bound[n]))
-    return candidate
 
 class my_candidate():
     """
@@ -618,19 +622,6 @@ class annealing(InspyredAlgorithmBasis):
             self.evo_strat.observer=[observers.file_observer]
 
 
-class problem:
-
-    def __init__(self, bounds):
-        self.bounds = bounds
-        self.min_max = bounds
-
-    def fitness(self, x):
-        return combineFeatures([normalize(x,self)])
-
-    def get_bounds(self):
-        return(self.bounds[0], self.bounds[1])
-
-
 class PygmoDE(PygmoAlgorithmBasis):
 
     def __init__(self,reader_obj,model_obj,option_obj):
@@ -647,7 +638,7 @@ class PygmoDE(PygmoAlgorithmBasis):
 class PygmoSADE(PygmoAlgorithmBasis):
 
     def __init__(self,reader_obj,model_obj,option_obj):
-        print("SADEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+
         PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
 
         self.max_evaluation=int(option_obj.max_evaluation)
@@ -656,6 +647,18 @@ class PygmoSADE(PygmoAlgorithmBasis):
 
         self.algo_type = pg.sade
         self.algorithm = pg.algorithm(pg.sade(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15))
+
+class PygmoPSO(PygmoAlgorithmBasis):
+    
+    def __init__(self,reader_obj,model_obj,option_obj):
+        PygmoAlgorithmBasis.__init__(self, reader_obj, model_obj, option_obj)
+
+        self.max_evaluation=int(option_obj.max_evaluation)
+
+        self.pop_kwargs['size'] = int(option_obj.pop_size)
+        
+        self.algo_type = pg.pso
+        self.algorithm = pg.algorithm(pg.pso(gen=self.max_evaluation))
 
         
 class PSO(InspyredAlgorithmBasis):
