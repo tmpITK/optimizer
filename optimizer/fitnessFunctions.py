@@ -1032,7 +1032,7 @@ class fF(object):
             temp_fit = 0
 
 
-        self.model=modelHandler.modelHandlerNeuron(self.option.model_path,self.option.model_spec_dir,self.option.base_dir)
+        #self.model=modelHandler.modelHandlerNeuron(self.option.model_path,self.option.model_spec_dir,self.option.base_dir)
 
 
         return self.fitnes

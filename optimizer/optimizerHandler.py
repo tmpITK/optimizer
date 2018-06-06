@@ -62,6 +62,21 @@ global brain_var
 moo_var=False
 brain_var=False
 
+def _pickle_method(method):
+    func_name = method.im_func.__name__
+    obj = method.im_self
+    cls = method.im_class
+    return _unpickle_method, (func_name, obj, cls)
+
+def _unpickle_method(func_name, obj, cls):
+    for cls in cls.mro():
+        try:
+            func = cls.__dict__[func_name]
+        except KeyError:
+            pass
+        else:
+            break
+    return func.__get__(obj, cls)
 
 def normalize(values,args):
     """
@@ -309,6 +324,16 @@ class Problem:
         self.bounds = bounds
         self.min_max = bounds
         self.fitnes_fun = fitnes_fun
+
+    def __getstate__(self):
+        bounds = self.bounds
+        min_max = self.min_max
+        f_f = self.fitnes_fun
+        return (bounds, min_max, f_f)
+
+    def __setstate__(self, state):
+        self.bounds, self.min_max, self.fitnes_fun = state
+
 
     def fitness(self, x):
         return self.fitnes_fun([normalize(x,self)])
