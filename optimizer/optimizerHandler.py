@@ -20,6 +20,7 @@ import json
 from functools import partial
 import numpy
 import time
+import os
 
 from math import sqrt
 
@@ -57,6 +58,7 @@ from scipy import dot, exp, log, sqrt, floor, ones, randn
 from pybrain.tools.rankingfunctions import RankingFunction
 
 import pygmo as pg
+import modelHandler
 
 global moo_var
 global brain_var
@@ -300,9 +302,12 @@ class PygmoAlgorithmBasis(baseOptimizer):
 
 		self.prob = Problem(self.ffun,self.boundaries, self.num_islands, self.pop_size, self.max_evaluation, self.base_dir)
 		self.archi = pg.archipelago(n=self.num_islands,algo=self.algorithm, prob=self.prob, pop_size=self.pop_size)
+		
 		self.archi.evolve()
 		
+
 		print(self.archi)
+		
 		self.archi.wait()
 		print(self.archi)
 		self.champions_x = self.archi.get_champions_x()
@@ -326,11 +331,17 @@ class Problem:
 		self.gen_counter = 0
 		self.directory = directory
 
+		try:
+			os.remove(self.directory + '/island_inds.txt')
+		except OSError:
+			pass
+
 	def fitness(self, x):
 
 		#print("individual: {0}".format(x))
 		#print("normalized: {0}".format(normalize(x, self)))
 		fitness = self.fitnes_fun([normalize(x,self)])
+		print('PYGMO FITNES')
 		#print("fitness: {0} at {1}".format(fitness, time.time()))
 		with open(self.directory + '/island_inds.txt', 'a') as inds_file:
 			inds_file.write("{0}, {1}, {2}, {3}, {4}\n".format(self.gen_counter, self.pop_counter, fitness, x, normalize(x, self)))
@@ -497,6 +508,7 @@ class PygmoDE(PygmoAlgorithmBasis):
 
 		self.max_evaluation=int(option_obj.max_evaluation)
 		self.pop_size = int(option_obj.pop_size)
+		print('XXXXXX PYGMO DE GENS {} XXXXXXX'.format(self.max_evaluation))
 
 		self.algorithm = pg.algorithm(pg.de(gen=self.max_evaluation, ftol=1e-15, tol=1e-15))
 
@@ -506,8 +518,9 @@ class PygmoCMAES(PygmoAlgorithmBasis):
 
 		self.max_evaluation=int(option_obj.max_evaluation)
 		self.pop_size = int(option_obj.pop_size)
+		self.force_bounds = option_obj.force_bounds
 
-		self.algorithm = pg.algorithm(pg.cmaes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=False))
+		self.algorithm = pg.algorithm(pg.cmaes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=self.force_bounds))
 
 class PygmoPSO(PygmoAlgorithmBasis):
 	def __init__(self, reader_obj, model_obj, option_obj):
@@ -524,8 +537,10 @@ class PygmoXNES(PygmoAlgorithmBasis):
 
 		self.max_evaluation=int(option_obj.max_evaluation)
 		self.pop_size = int(option_obj.pop_size)
+		self.force_bounds = option_obj.force_bounds
+		print('BOUND :', self.force_bounds)
 
-		self.algorithm = pg.algorithm(pg.xnes(gen=self.max_evaluation))
+		self.algorithm = pg.algorithm(pg.xnes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=bool(self.force_bounds)))
 
 class PygmoBEE(PygmoAlgorithmBasis):
 	def __init__(self, reader_obj, model_obj, option_obj):
