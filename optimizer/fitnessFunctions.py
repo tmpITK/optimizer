@@ -1055,7 +1055,8 @@ class fF(object):
         if(self.option.simulator == 'Neuron'):
             self.model=modelHandler.modelHandlerNeuron(self.option.model_path,self.option.model_spec_dir,self.option.base_dir)
 
-        print('\n fitnes {}\n'.format(self.fitnes))
+        #print('\n fitnes {}\n'.format(self.fitnes))
+        
 
         return self.fitnes
 
@@ -1110,7 +1111,7 @@ class fF(object):
         :return: the ``list`` of fitness values corresponding to the parameter sets
 
         """
-
+        print("MOO "*30)
         self.fitnes = []
         features = self.option.feats
 

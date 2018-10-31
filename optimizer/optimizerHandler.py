@@ -210,10 +210,11 @@ class InspyredAlgorithmBasis(baseOptimizer):
 
 		self.pop_size = option_obj.pop_size
 		self.max_evaluation = option_obj.max_evaluation
+		self.directory = option_obj.base_dir
 
 		self.maximize = False  # hard wired, always minimize
-		self.stat_file = open("stat_file.txt", "w")
-		self.ind_file = open("ind_file.txt", "w")
+		self.stat_file = open(self.directory + "/stat_file.txt", "w")
+		self.ind_file = open(self.directory + "/ind_file.txt", "w")
 
 		try:
 			# print type(option_obj.starting_points)
@@ -520,7 +521,7 @@ class PygmoCMAES(PygmoAlgorithmBasis):
 		self.pop_size = int(option_obj.pop_size)
 		self.force_bounds = option_obj.force_bounds
 
-		self.algorithm = pg.algorithm(pg.cmaes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=self.force_bounds))
+		self.algorithm = pg.algorithm(pg.cmaes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=bool(self.force_bounds)))
 
 class PygmoPSO(PygmoAlgorithmBasis):
 	def __init__(self, reader_obj, model_obj, option_obj):
@@ -537,7 +538,7 @@ class PygmoXNES(PygmoAlgorithmBasis):
 
 		self.max_evaluation=int(option_obj.max_evaluation)
 		self.pop_size = int(option_obj.pop_size)
-		self.force_bounds = option_obj.force_bounds
+		self.force_bounds = option_obj.force_bounds if option_obj.force_bounds else False
 		print('BOUND :', self.force_bounds)
 
 		self.algorithm = pg.algorithm(pg.xnes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=bool(self.force_bounds)))
@@ -645,7 +646,7 @@ class PSO(InspyredAlgorithmBasis):
 		"""
 		logger = logging.getLogger('inspyred.ec')
 		logger.setLevel(logging.DEBUG)
-		file_handler = logging.FileHandler('inspyred.log', mode='w')
+		file_handler = logging.FileHandler(self.directory + '/inspyred.log', mode='w')
 		file_handler.setLevel(logging.DEBUG)
 		formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 		file_handler.setFormatter(formatter)
