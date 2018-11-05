@@ -445,6 +445,8 @@ class coreModul():
 			self.optimizer=PygmoDE1220(self.data_handler,self.model_handler,self.option_handler)
 		elif self.option_handler.evo_strat=="PYGMO BEE":
 			self.optimizer=PygmoBEE(self.data_handler,self.model_handler,self.option_handler)
+		elif self.option_handler.evo_strat=="FullGrid":
+			self.optimizer=FullGrid(self.data_handler,self.model_handler,self.option_handler)
 		elif self.option_handler.evo_strat=="NSGAII-deap":
 			self.optimizer=deapNSGA(self.data_handler,self.model_handler,self.option_handler,'nsga')
 			self.moo_var = True

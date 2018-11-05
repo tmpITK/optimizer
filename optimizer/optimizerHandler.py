@@ -59,6 +59,7 @@ from pybrain.tools.rankingfunctions import RankingFunction
 
 import pygmo as pg
 import modelHandler
+from itertools import combinations, product
 
 global moo_var
 global brain_var
@@ -216,6 +217,7 @@ class InspyredAlgorithmBasis(baseOptimizer):
 		self.stat_file = open(self.directory + "/stat_file.txt", "w")
 		self.ind_file = open(self.directory + "/ind_file.txt", "w")
 
+
 		try:
 			# print type(option_obj.starting_points)
 			if isinstance(option_obj.starting_points[0], list):
@@ -240,13 +242,14 @@ class InspyredAlgorithmBasis(baseOptimizer):
 						   boundaries=self.min_max,
 						   statistics_file=self.stat_file,
 						   individuals_file=self.ind_file)
+				
 	def Optimize(self):
 			"""
 			Performs the optimization.
 			"""
 			logger = logging.getLogger('inspyred.ec')
 			logger.setLevel(logging.DEBUG)
-			file_handler = logging.FileHandler('inspyred.log', mode='w')
+			file_handler = logging.FileHandler(self.directory + '/inspyred.log', mode='w')
 			file_handler.setLevel(logging.DEBUG)
 			formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 			file_handler.setFormatter(formatter)
@@ -1135,6 +1138,7 @@ class NSGAII(InspyredAlgorithmBasis):
 	"""
 	def __init__(self,reader_obj,model_obj,option_obj):
 		InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
+		self.kwargs["mp_evaluator"] = self.mfun
 		global moo_var
 		moo_var = True
 		self.evo_strat=ec.emo.NSGA2(self.rand)
@@ -1169,6 +1173,8 @@ class PAES(InspyredAlgorithmBasis):
 	def __init__(self,reader_obj,model_obj,option_obj):
 		InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
 
+		self.kwargs["mp_evaluator"] = self.mfun
+
 		global moo_var
 		moo_var = True
 
@@ -1185,6 +1191,102 @@ class PAES(InspyredAlgorithmBasis):
 
 		self.kwargs['mutation_rate'] = option_obj.mutation_rate
 		self.kwargs['num_elites'] = int(self.pop_size/2)
+
+class FullGrid(InspyredAlgorithmBasis):
+	
+	def __init__(self,reader_obj,model_obj,option_obj):
+		InspyredAlgorithmBasis.__init__(self, reader_obj,model_obj,option_obj)
+
+		self.evo_strat=ec.ES(self.rand)
+
+		if option_obj.output_level=="1":
+			self.evo_strat.observer=[observers.population_observer,observers.file_observer]
+		else:
+			self.evo_strat.observer=[observers.file_observer]
+		
+
+		self.resolution = [5,5,5]
+		#self.resolution = list(map(lambda x: x if x>=3 else 3, self.resolution))
+		
+		if(len(self.resolution) < self.kwargs['num_params']):
+			print("Not enough values for every parameter. Will expand resolution with threes.")
+			self.resolution = self.resolution + [1] * (self.kwargs['num_params'] - len(self.resolution))
+			print("New resolution is: ", self.resolution)
+			
+
+		elif(len(self.resolution) > self.kwargs['num_params']):
+			print("Too many values. Excess resolution will be ignored.")
+			self.resolution = self.resolution[0:self.kwargs['num_params']]
+			print("New resolution is: ", self.resolution)
+			
+		
+		
+		self.grid = [] 
+		self.alldims = []
+	#self.point = option_obj.point
+		#HH
+		self.point = [0.12,0.036,0.0003]
+		if(not self.point):
+			print("No point given. Will take center of grid")
+			self.point = list(map(lambda x: int(x/2), self.resolution))
+			print("New point is: ", self.point)
+			
+		#CLAMP
+		#self.point = [0.01, 2, 0.3, 3] 
+		#align grid on point
+		
+		for j in range(len(option_obj.boundaries[0])):
+			if(self.resolution[j] == 1):
+				self.alldims.append([self.point[j]])
+				continue
+			
+			#ugly way to ensure same resolution before and after point included
+			upper_bound = option_obj.boundaries[1][j] - float((float(option_obj.boundaries[1][j]))/float(self.resolution[j]-1)/2)
+			
+			div = float((upper_bound)/(self.resolution[j]-1))
+			lower_bound = (self.point[j]/div % 1) * div
+			
+			upper_bound = upper_bound + lower_bound
+			
+			self.alldims.append(list(np.linspace(lower_bound,upper_bound,self.resolution[j])))
+			
+			
+		print(option_obj.boundaries)
+
+		for i,t in enumerate(combinations(self.alldims, r=self.num_params-1)):
+			plane_dimensions = list(t) 
+			optimum_point = [self.point[self.num_params-1-i]]
+			plane_dimensions.insert(self.num_params-1-i, optimum_point) 
+			print("PLANE", plane_dimensions)
+
+			for t in product(*plane_dimensions):
+				print(list(t))
+				#exit()
+				if(len(self.point)-1-i)==0:
+					print(list(t))
+					#exit()
+				print(list(t))
+				self.grid.append(normalize(list(t),self))
+
+				
+			if(len(self.point)-1-i)==0:
+				print(len(plane_dimensions[0]))
+
+
+		print(self.grid)
+		print(type(self.grid))
+
+		self.kwargs["seeds"] = self.grid
+		self.kwargs["max_generations"] = 0
+		self.kwargs["pop_size"] = 1
+		#candidate[-0.024653979238754356, -0.012413494809688589, 0.02948166788997238]
+		#fitnes 0.746863844888 0.746863844888
+
+		print("NOOOORM", normalize([0.12,0.036,0.0003],self))
+		#self.grid = [normalize([0.12,0.036,0.0003],self), [ 0.42144982,  0.10608837,  0.18303551]]
+		#print(self.grid)
+
+
 
 
 def selIBEA(population, mu, alpha=None, kappa=.05, tournament_n=4):
@@ -1297,6 +1399,7 @@ class deapIBEA(oldBaseOptimizer):
 		self.fit_obj=fF(reader_obj,model_obj,option_obj)
 		self.SetFFun(option_obj)
 		self.rand=Random()
+		self.directory = option_obj.base_dir
 		global moo_var
 		moo_var=True
 		self.seed=option_obj.seed
@@ -1326,6 +1429,7 @@ class deapIBEA(oldBaseOptimizer):
 		self.toolbox.register("mutate", tools.mutPolynomialBounded, low=BOUND_LOW, up=BOUND_UP, eta=20.0, indpb=1.0/NDIM)
 		pool=multiprocessing.Pool(processes=int(self.number_of_cpu))
 		self.toolbox.register("map",pool.map)
+		self.stat_file=open(self.directory + "/stat_file.txt", "w")
 
 	def Optimize(self):
 
@@ -1407,7 +1511,9 @@ class deapIBEA(oldBaseOptimizer):
 
 				self.final_pop.append(pop)
 				self.final_pop.append(fitnesses)
-
+			print(self.logbook)
+			self.stat_file.write(self.logbook.__str__())
+			
 
 
 	def SetBoundaries(self,bounds):
