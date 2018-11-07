@@ -5,13 +5,19 @@
 
 import nest
 import numpy as np
+import sys
+import os
 
 nest.ResetKernel()
 
 
 # In[159]:
 
-params = np.genfromtxt("params.param")
+unique_ID = sys.argv[1]
+
+params_file = 'params' + unique_ID + '.param' 
+
+params = np.genfromtxt(params_file)
 
 gL_Bas      = params[0]*1000   #5.0e-3 #7.14293e-3
 tauMem_Bas 	= params[1]   #14.0
@@ -43,7 +49,7 @@ tau_w   = params[9]   #20 #100#144.0   #ms	Adaptation time constant
 # changes shape of f-I curve
 # 44 steeper, 160 flatter
 
-v_spike = theta_Bas + 10 * delta_T	#mV	Spike detection threshold
+v_spike = theta_Bas + 5 * delta_T	#mV	Spike detection threshold
 
 
 # In[160]:
@@ -100,16 +106,23 @@ nest.Connect(neuron,      spikedetector)
 
 
 # In[165]:
+try:
+    nest.Simulate(1100.1)
 
-nest.Simulate(1100.1)
+    times    = nest.GetStatus(voltmeter)[0]['events']['times']      # they start from 1.0
+    times    = np.insert(times, 0, 0.)
+    voltages = nest.GetStatus(voltmeter)[0]['events']['V_m']
+    voltages = np.insert(voltages, 0, -60.)
 
+except nest.NESTError:
+    print("ERROR COUGHT "*20)
+
+    times = list(np.linspace(0.0,1100.0, 5501))
+    voltages = list(np.linspace(-100, 0, 5501))
 
 # In[166]:
 
-times    = nest.GetStatus(voltmeter)[0]['events']['times']      # they start from 1.0
-times    = np.insert(times, 0, 0.)
-voltages = nest.GetStatus(voltmeter)[0]['events']['V_m']
-voltages = np.insert(voltages, 0, -60.)
+
 spikes   = nest.GetStatus(spikedetector)[0]['events']['times']
 
 #import matplotlib.pyplot as plt
@@ -117,6 +130,7 @@ spikes   = nest.GetStatus(spikedetector)[0]['events']['times']
 #plt.show()
 
 # In[167]:
-
-np.savetxt('spike.dat', spikes, fmt='%.2f')
-np.savetxt('trace.dat', np.array([times, voltages]).T, fmt='%.2f')
+spike_filename = 'spike' + unique_ID + '.dat'
+trace_filename = 'trace' + unique_ID + '.dat'
+np.savetxt(spike_filename, spikes, fmt='%.2f')
+np.savetxt(trace_filename, np.array([times, voltages]).T, fmt='%.2f')
