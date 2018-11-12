@@ -63,7 +63,7 @@ from itertools import combinations, product
 
 global moo_var
 global brain_var
-moo_var=False
+
 brain_var=False
 
 def _pickle_method(method):
@@ -168,6 +168,7 @@ class baseOptimizer():
 		self.rand = random
 		self.seed = int(option_obj.seed)
 		self.rand.seed(self.seed)
+		self.directory = option_obj.base_dir
 
 		self.num_params = option_obj.num_params
 		self.number_of_cpu=option_obj.number_of_cpu
@@ -211,7 +212,6 @@ class InspyredAlgorithmBasis(baseOptimizer):
 
 		self.pop_size = option_obj.pop_size
 		self.max_evaluation = option_obj.max_evaluation
-		self.directory = option_obj.base_dir
 
 		self.maximize = False  # hard wired, always minimize
 		self.stat_file = open(self.directory + "/stat_file.txt", "w")
@@ -299,8 +299,6 @@ class PygmoAlgorithmBasis(baseOptimizer):
 		self.base_dir = option_obj.base_dir
 		
 		self.num_islands = int(option_obj.num_islands)
-		with open('island_inds.txt', 'w') as inds_file:
-			inds_file.write("COST - PARAMETERS - RENORMALIZED PARAMETERS\n")
 
 	def Optimize(self):
 
@@ -376,7 +374,7 @@ class SinglePygmoAlgorithmBasis(baseOptimizer):
 	def write_statistics_file(self):
 		with open (self.directory + "/stat_file.txt", 'w+') as stat_file:  
 			for line in self.log:
-				print(line, 'LINE')
+				#print(line, 'LINE')
 				for i,element in enumerate(line):
 					if i == len(line)-1:
 						stat_file.write(str(element))
@@ -512,7 +510,6 @@ class PygmoDE(PygmoAlgorithmBasis):
 
 		self.max_evaluation=int(option_obj.max_evaluation)
 		self.pop_size = int(option_obj.pop_size)
-		print('XXXXXX PYGMO DE GENS {} XXXXXXX'.format(self.max_evaluation))
 
 		self.algorithm = pg.algorithm(pg.de(gen=self.max_evaluation, ftol=1e-15, tol=1e-15))
 
@@ -679,6 +676,7 @@ class basinHopping(ScipyAlgorithmBasis):
 		self.num_repet=option_obj.num_repet
 		self.step_size=option_obj.step_size
 		self.freq=option_obj.update_freq
+		
 
 	def logger(self,x,f,accepted):
 		self.log_file.write(np.array_str(x))
@@ -713,7 +711,7 @@ class basinHopping(ScipyAlgorithmBasis):
 		Performs the optimization.
 		"""
 
-		self.log_file=open("basinhopping.log","w")
+		self.log_file=open(self.directory + "/basinhopping.log","w")
 		list_of_results=[0]*int(self.num_repet)
 		for points in range(int(self.num_repet)):
 			self.log_file.write(str(points+1)+". starting point: ["+", ".join(map(str,self.starting_points))+"]")
@@ -1291,104 +1289,109 @@ class FullGrid(InspyredAlgorithmBasis):
 
 def selIBEA(population, mu, alpha=None, kappa=.05, tournament_n=4):
 	"""IBEA Selector"""
-	def _calc_fitness_components(population, kappa):
-		"""returns an N * N numpy array of doubles, which is their IBEA fitness """
-		# DEAP selector are supposed to maximise the objective values
-		# We take the negative objectives because this algorithm will minimise
-		population_matrix = numpy.fromiter(
-			iter(-x for individual in population
-				 for x in individual.fitness.wvalues),
-			dtype=numpy.float)
-		pop_len = len(population)
-		feat_len = len(population[0].fitness.wvalues)
-		print(pop_len)
-		print(feat_len)
-		population_matrix = population_matrix.reshape((pop_len, feat_len))
-
-		# Calculate minimal square bounding box of the objectives
-		box_ranges = (numpy.max(population_matrix, axis=0) -
-					  numpy.min(population_matrix, axis=0))
-
-		# Replace all possible zeros to avoid division by zero
-		# Basically 0/0 is replaced by 0/1
-		box_ranges[box_ranges == 0] = 1.0
-
-		components_matrix = numpy.zeros((pop_len, pop_len))
-		for i in range(0, pop_len):
-			diff = population_matrix - population_matrix[i, :]
-			components_matrix[i, :] = numpy.max(
-				numpy.divide(diff, box_ranges),
-				axis=1)
-
-		# Calculate max of absolute value of all elements in matrix
-		max_absolute_indicator = numpy.max(numpy.abs(components_matrix))
-
-		# Normalisation
-		if max_absolute_indicator != 0:
-			components_matrix = numpy.exp(
-				(-1.0 / (kappa * max_absolute_indicator)) * components_matrix.T)
-
-		return components_matrix
-
-
-	def _calc_fitnesses(population, components):
-		"""Calculate the IBEA fitness of every individual"""
-
-		# Calculate sum of every column in the matrix, ignore diagonal elements
-		column_sums = numpy.sum(components, axis=0) - numpy.diagonal(components)
-
-		# Fill the 'ibea_fitness' field on the individuals with the fitness value
-		for individual, ibea_fitness in zip(population, column_sums):
-			individual.ibea_fitness = ibea_fitness
-
-
-	def _choice(seq):
-		"""Python 2 implementation of choice"""
-
-		return seq[int(random.random() * len(seq))]
-
-
-	def _mating_selection(population, mu, tournament_n):
-		"""Returns the n_of_parents individuals with the best fitness"""
-
-		parents = []
-		for _ in range(mu):
-			winner = _choice(population)
-			for _ in range(tournament_n - 1):
-				individual = _choice(population)
-				# Save winner is element with smallest fitness
-				if individual.ibea_fitness < winner.ibea_fitness:
-					winner = individual
-			parents.append(winner)
-
-		return parents
-
-
-	def _environmental_selection(population, selection_size):
-		"""Returns the selection_size individuals with the best fitness"""
-
-		# Sort the individuals based on their fitness
-		population.sort(key=lambda ind: ind.ibea_fitness)
-
-		# Return the first 'selection_size' elements
-		return population[:selection_size]
-
+	print("selIBEA OK")
 	if alpha is None:
 		alpha = len(population)
 
 	# Calculate a matrix with the fitness components of every individual
 	components = _calc_fitness_components(population, kappa=kappa)
+	print("Calc fitnes components OK")
 
 	# Calculate the fitness values
 	_calc_fitnesses(population, components)
+	print("Calc fitnes OK")
 
 	# Do the environmental selection
 	population[:] = _environmental_selection(population, alpha)
+	print("Env selection OK")
 
 	# Select the parents in a tournament
 	parents = _mating_selection(population, mu, tournament_n)
+	print("Mating OK")
+	print('\nPARENTS')
+	print(parents)
+	return parents
+
+
+def _calc_fitness_components(population, kappa):
+	"""returns an N * N numpy array of doubles, which is their IBEA fitness """
+	# DEAP selector are supposed to maximise the objective values
+	# We take the negative objectives because this algorithm will minimise
+	population_matrix = numpy.fromiter(
+		iter(-x for individual in population
+			 for x in individual.fitness.wvalues),
+		dtype=numpy.float)
+	pop_len = len(population)
+	feat_len = len(population[0].fitness.wvalues)
+	population_matrix = population_matrix.reshape((pop_len, feat_len))
+
+	# Calculate minimal square bounding box of the objectives
+	box_ranges = (numpy.max(population_matrix, axis=0) -
+				  numpy.min(population_matrix, axis=0))
+	print("box_ranges OK")
+	# Replace all possible zeros to avoid division by zero
+	# Basically 0/0 is replaced by 0/1
+	box_ranges[box_ranges == 0] = 1.0
+
+	components_matrix = numpy.zeros((pop_len, pop_len))
+	for i in range(0, pop_len):
+		diff = population_matrix - population_matrix[i, :]
+		components_matrix[i, :] = numpy.max(
+			numpy.divide(diff, box_ranges),
+			axis=1)
+	print("divide OK")
+	# Calculate max of absolute value of all elements in matrix
+	max_absolute_indicator = numpy.max(numpy.abs(components_matrix))
+
+	# Normalisation
+	if max_absolute_indicator != 0:
+		components_matrix = numpy.exp(
+			(-1.0 / (kappa * max_absolute_indicator)) * components_matrix.T)
+
+	return components_matrix
+
+
+def _calc_fitnesses(population, components):
+	"""Calculate the IBEA fitness of every individual"""
+
+	# Calculate sum of every column in the matrix, ignore diagonal elements
+	column_sums = numpy.sum(components, axis=0) - numpy.diagonal(components)
+
+	# Fill the 'ibea_fitness' field on the individuals with the fitness value
+	for individual, ibea_fitness in zip(population, column_sums):
+		individual.ibea_fitness = ibea_fitness
+
+
+def _choice(seq):
+	"""Python 2 implementation of choice"""
+
+	return seq[int(random.random() * len(seq))]
+
+
+def _mating_selection(population, mu, tournament_n):
+	"""Returns the n_of_parents individuals with the best fitness"""
+
+	parents = []
+	for _ in range(mu):
+		winner = _choice(population)
+		for _ in range(tournament_n - 1):
+			individual = _choice(population)
+			# Save winner is element with smallest fitness
+			if individual.ibea_fitness < winner.ibea_fitness:
+				winner = individual
+		parents.append(winner)
 
 	return parents
+
+
+def _environmental_selection(population, selection_size):
+	"""Returns the selection_size individuals with the best fitness"""
+
+	# Sort the individuals based on their fitness
+	population.sort(key=lambda ind: ind.ibea_fitness)
+
+	# Return the first 'selection_size' elements
+	return population[:selection_size]
 
 
 class deapIBEA(oldBaseOptimizer):
@@ -1513,6 +1516,7 @@ class deapIBEA(oldBaseOptimizer):
 				self.final_pop.append(fitnesses)
 			print(self.logbook)
 			self.stat_file.write(self.logbook.__str__())
+
 			
 
 
@@ -1545,9 +1549,9 @@ class deapNSGA(oldBaseOptimizer):
 		self.SetBoundaries(option_obj.boundaries)
 		BOUND_LOW = self.min_max[0]
 		BOUND_UP = self.min_max[1]
+
 		NDIM = 30
-		print('option_obj')
-		minimweights=[ -x for x in option_obj.weights]*reader.number_of_traces() #turn weights for minimizing
+		minimweights=[ -x for x in option_obj.weights]*reader_obj.number_of_traces() #turn weights for minimizing
 		print(minimweights)
 		creator.create("FitnessMin", base.Fitness, weights=minimweights)
 		creator.create("Individual", array1.array, typecode='d', fitness=creator.FitnessMin)
@@ -1566,6 +1570,9 @@ class deapNSGA(oldBaseOptimizer):
 		if algo=='spea':
 			self.toolbox.register("select", tools.selSPEA2)
 			print('spea')
+		elif algo=='ibea':
+			self.toolbox.register("select", selIBEA)
+			print('ibea')
 		else:
 			self.toolbox.register("select", tools.selNSGA2)
 			print('nsga')
@@ -1686,12 +1693,15 @@ class deapNSGA(oldBaseOptimizer):
 				ind.fitness.values = fit[0]
 
 		# Select the next generation population
-			self.final_pop.append(pop) #]append([poparray2 , finalfitness[i] , (birth-len(pop)+i)])
-			self.final_pop.append(fitnesses)
+
+			pop2 = [arr.tolist() for arr in pop]
+			poparray2 += pop2 #]append([poparray2 , finalfitness[i] , (birth-len(pop)+i)])
+			
+			fitnesses = [fit[0] for fit in fitnesses]
+			finalfits += fitnesses
 			pop = self.toolbox.select(pop + offspring, MU)
+
 			record = stats.compile(pop)
-			print('stats')
-			print(record)
 
 			self.logbook.record(gen=gen, evals=len(invalid_ind), **record)
 		#self.final_pop = []
@@ -1706,7 +1716,7 @@ class deapNSGA(oldBaseOptimizer):
 			#self.finap_pop.birthdate.append((birth-len(pop)+i))
 		self.final_pop.append(poparray2) #]append([poparray2 , finalfitness[i] , (birth-len(pop)+i)])
 		self.final_pop.append(finalfits)
-		moo_var=False
+		
 		#<Individual: candidate = [0.07722800626371065, 0.2423814486289446, 0.5850818875172326, 0.889195037637904],>
 		#fitness = (0.6016907118977254, 0.03124087065642784), birthdate = 1479060665.16>
 
