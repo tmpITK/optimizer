@@ -1634,7 +1634,7 @@ class deapNSGA(oldBaseOptimizer):
 			if not pop[i].fitness.valid:
 				for j in range(0,len(pop[i])):
 					poparr.append(pop[i][j])
-				valid_ind.append([poparr])
+				valid_ind.append([normalize(poparr,self)])
 
 		#fitnesses = self.toolbox.map(self.toolbox.evaluate, invalid_ind)
 
@@ -1684,7 +1684,7 @@ class deapNSGA(oldBaseOptimizer):
 				if not offspring[i].fitness.valid:
 					for j in range(0,len(pop[i])):
 						poparr.append(pop[i][j])
-					valid_ind.append([poparr])
+					valid_ind.append([normalize(poparr, self)])
 
 			#fitnesses = self.toolbox.map(self.toolbox.evaluate, invalid_ind)
 			fitnesses = self.toolbox.map(self.toolbox.evaluate,valid_ind)
