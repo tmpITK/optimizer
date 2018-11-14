@@ -197,6 +197,8 @@ class fF(object):
             print('PID ', pid, ' ************')
             
             with open(self.option.base_dir + "/params" + unique_ID + ".param" , "w") as out_handler:
+                print("CANDIDATES")
+                print(candidates)
                 for c in candidates:
                     out_handler.write(str(c) + "\n")
                 out_handler.write(str(act_trace_idx))
@@ -211,6 +213,7 @@ class fF(object):
                     os.remove(params_file)
             except OSError:
                 pass
+            
             
 
             with open(self.option.base_dir + '/trace' + unique_ID + '.dat', "r") as in_handler:
@@ -246,7 +249,6 @@ class fF(object):
             self.setParameters(section, candidates)
             self.model.RunControll(settings)
 
-        
         return error
 
     def ReNormalize(self, l):
@@ -1067,7 +1069,7 @@ class fF(object):
         if(self.option.simulator == 'Neuron'):
             self.model=modelHandler.modelHandlerNeuron(self.option.model_path,self.option.model_spec_dir,self.option.base_dir)
 
-        #print('\n fitnes {}\n'.format(self.fitnes))
+        print('\n fitnes {}\n'.format(self.fitnes))
         
 
         return self.fitnes
@@ -1119,7 +1121,8 @@ class fF(object):
             the actual data traces.
         :return: the ``list`` of fitness values corresponding to the parameter sets
         """
-        #print("MOOO"*30)
+        print("MOOO CANDIDATES")
+        print(candidates)
         self.fitnes = []
         features = self.option.feats
 
@@ -1139,9 +1142,11 @@ class fF(object):
             k_range=len(self.reader.features_data["stim_amp"])
 
         for l in candidates:
+
             if self.option.output_level == "1":
                 print(l)
             l = self.ReNormalize(l)
+
             if self.option.output_level == "1":
                 print(l)
             for k in range(k_range):     #for k in range(self.reader.number_of_traces()):
@@ -1159,6 +1164,7 @@ class fF(object):
                 else:
                     extra_param = self.option.GetModelRun()
                     self.model.SetStimuli(parameter, extra_param)
+                
                 if (not self.modelRunner(l,k)):
                     if self.option.output_level == "1":
                         print(features, weigths)
@@ -1190,7 +1196,8 @@ class fF(object):
         print("FITNES: " ,self.fitnes)
         print("LEN: ", len(self.fitnes[0]))
         '''
-        print("Param and fit", candidates, self.fitnes)
+        print("Param and fit", candidates) 
+        print(self.fitnes)
         
         
         return self.fitnes
