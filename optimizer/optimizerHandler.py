@@ -343,7 +343,7 @@ class Problem:
 		#print("individual: {0}".format(x))
 		#print("normalized: {0}".format(normalize(x, self)))
 		fitness = self.fitnes_fun([normalize(x,self)])
-		print('PYGMO FITNES')
+		
 		#print("fitness: {0} at {1}".format(fitness, time.time()))
 		with open(self.directory + '/island_inds.txt', 'a') as inds_file:
 			inds_file.write("{0}, {1}, {2}, {3}, {4}\n".format(self.gen_counter, self.pop_counter, fitness, x, normalize(x, self)))
@@ -520,6 +520,7 @@ class PygmoCMAES(PygmoAlgorithmBasis):
 		self.max_evaluation=int(option_obj.max_evaluation)
 		self.pop_size = int(option_obj.pop_size)
 		self.force_bounds = option_obj.force_bounds
+		
 
 		self.algorithm = pg.algorithm(pg.cmaes(gen=self.max_evaluation, ftol=1e-15, xtol=1e-15, force_bounds=bool(self.force_bounds)))
 
@@ -1547,6 +1548,7 @@ class deapNSGA(oldBaseOptimizer):
 		self.num_params=option_obj.num_params
 		self.number_of_cpu=option_obj.number_of_cpu
 		self.SetBoundaries(option_obj.boundaries)
+		self.directory = option_obj.base_dir
 		BOUND_LOW = self.min_max[0]
 		BOUND_UP = self.min_max[1]
 
@@ -1578,8 +1580,8 @@ class deapNSGA(oldBaseOptimizer):
 			print('nsga')
 		pool=multiprocessing.Pool(processes=int(self.number_of_cpu))
 		self.toolbox.register("map",pool.map)
-		self.stat_file=open("stat_file.txt","w")
-		self.ind_file=open("ind_file.txt","w")
+		self.stat_file=open(self.directory + "/stat_file.txt","w")
+		#self.ind_file=open(self.directory + "/ind_file.txt","w")
 		#inspyred needs sequence of seeds
 		#self.starting_points=[normalize(args.get("starting_points",uniform(self.rand,{"num_params" : self.num_params,"self": self})),self)]
 		try:
@@ -1655,7 +1657,9 @@ class deapNSGA(oldBaseOptimizer):
 		self.logbook.record(gen=0, evals=len(invalid_ind), **record)
 		birth = 0
 		finalfits=[]
+		finalfits += [f[0] for f in fitnesses]
 		poparray2=[]
+		poparray2 += [p[0] for p in pop]
 		self.final_pop = []
 		for gen in range(1, NGEN):
 		# Vary the population
@@ -1702,7 +1706,9 @@ class deapNSGA(oldBaseOptimizer):
 			pop = self.toolbox.select(pop + offspring, MU)
 
 			record = stats.compile(pop)
-
+			print("LOGBOOK GEN")
+			print("GEN", gen)
+			print(record)
 			self.logbook.record(gen=gen, evals=len(invalid_ind), **record)
 		#self.final_pop = []
 				#self.final_pop.candidate = []

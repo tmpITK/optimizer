@@ -155,10 +155,12 @@ class fF(object):
             the parameters are in their valid ranges.
 
         """
-        #print section
+        print("SECTION")
+        print(section)
         if self.option.GetUFunString() == "":
             for sec in section:
-                #print sec
+                print("SEC")
+                print(sec)
                 if len(str.split(sec, " ")) == 4:
                     self.model.SetChannelParameters(str.strip(str.split(sec, " ")[0]), str.strip(str.split(sec, " ")[1]), str.strip(str.split(sec, " ")[2]), str.strip(str.split(sec, " ")[3]),
                                                     params[section.index(sec)])
@@ -246,6 +248,7 @@ class fF(object):
                 settings.append(self.reader.data.step)
             else:
                 settings.append(0.05)
+            
             self.setParameters(section, candidates)
             self.model.RunControll(settings)
 
@@ -1069,7 +1072,6 @@ class fF(object):
         if(self.option.simulator == 'Neuron'):
             self.model=modelHandler.modelHandlerNeuron(self.option.model_path,self.option.model_spec_dir,self.option.base_dir)
 
-        print('\n fitnes {}\n'.format(self.fitnes))
         
 
         return self.fitnes
@@ -1188,16 +1190,6 @@ class fF(object):
             if self.option.output_level == "1":
                 print("current fitness: ",temp_fit)
             del temp_fit[:]         #remove list elements
-        '''
-        if(len(self.fitnes[0])==4):
-            print("WOLOLO")
-            self.fitnes = [ec.emo.Pareto((1,1,1,1,1,1,1,1,1,1,1,1))]
-        print("\nPARAMS: ", candidates)
-        print("FITNES: " ,self.fitnes)
-        print("LEN: ", len(self.fitnes[0]))
-        '''
-        print("Param and fit", candidates) 
-        print(self.fitnes)
         
         
         return self.fitnes

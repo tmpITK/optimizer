@@ -478,13 +478,28 @@ class coreModul():
 			self.fits=self.optimizer.final_pop[1]
 			self.optimizer.final_pop = []
 			print("WEIGHT")
-			#print(self.option_handler.weights*self.data_handler.number_of_traces())
+			print(self.option_handler.weights*self.data_handler.number_of_traces())
 			#for gen in self.fits:
+			print("MIN FIT")
+			print(self.fits[-1])
+			print(len(self.fits))
+			print(len(self.cands))
+			print(self.fits)
+			print(self.cands)
+
 
 		
 			avgfits=numpy.average(self.fits,axis=1,weights=self.option_handler.weights*self.data_handler.number_of_traces()).tolist()
-			mn,idx=min((avgfits[i],i) for i in range(len(avgfits)))
-			minind=idx
+			print("AVGFITS")
+			print(avgfits)
+			minind = np.argmin(avgfits)
+			print("TWENTIETH")
+			print(self.fits[minind])
+			print(avgfits[minind])
+			print(minind)
+
+			#mn,idx=min((avgfits[i],i) for i in range(len(avgfits)))
+			#minind=idx
 			self.cands[0]=self.cands[minind]
 			self.fits[0]=self.fits[minind]
 			del self.wfits2[:]
